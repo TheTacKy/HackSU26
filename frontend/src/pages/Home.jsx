@@ -37,7 +37,7 @@ function Home() {
             How It Works
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-emerald-500/50 transition-all duration-200">
+            <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6">
               <div className="w-12 h-12 bg-emerald-600 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -49,7 +49,7 @@ function Home() {
               </p>
             </div>
 
-            <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-emerald-500/50 transition-all duration-200">
+            <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6">
               <div className="w-12 h-12 bg-emerald-600 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -61,7 +61,7 @@ function Home() {
               </p>
             </div>
 
-            <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-emerald-500/50 transition-all duration-200">
+            <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6">
               <div className="w-12 h-12 bg-emerald-600 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
