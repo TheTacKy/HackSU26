@@ -1,4 +1,5 @@
 import requests
+import base64
 from app.config import GITHUB_TOKEN
 
 
@@ -17,3 +18,25 @@ def search_repositories(query):
 def get_issues(owner, repo, label):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues?labels={label}"
     return requests.get(url, headers=HEADERS).json()
+
+
+
+
+def get_readme(owner, repo):
+    url = f"https://api.github.com/repos/{owner}/{repo}/readme"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code == 200:
+        data = response.json()
+        content = base64.b64decode(data['content']).decode('utf-8')
+        return content
+    return None
+
+
+
+
+def get_code_breakdown(owner, repo, path=""):
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code == 200:
+        return response.json()
+    return None
