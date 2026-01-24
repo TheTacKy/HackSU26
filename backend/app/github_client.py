@@ -17,7 +17,12 @@ def search_repositories(query):
 
 def get_issues(owner, repo, label):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues?labels={label}"
-    return requests.get(url, headers=HEADERS).json()
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code == 200:
+        issues = response.json()
+        # Ensure we return a list (GitHub API returns a list, but handle edge cases)
+        return issues if isinstance(issues, list) else []
+    return []
 
 
 
