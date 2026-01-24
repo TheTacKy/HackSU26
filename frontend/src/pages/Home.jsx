@@ -8,12 +8,6 @@ function Home() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-white">HackSU26</h1>
-            <Link
-              to="/search"
-              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors duration-200 shadow-lg hover:shadow-emerald-500/50"
-            >
-              Find Repos
-            </Link>
           </div>
         </div>
       </nav>
@@ -136,24 +130,6 @@ function Home() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* CTA Section */}
-        <div className="max-w-3xl mx-auto mt-24 text-center">
-          <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-2xl p-12 shadow-2xl">
-            <h2 className="text-3xl font-bold text-white mb-4">
-              Ready to Find Your Next Project?
-            </h2>
-            <p className="text-emerald-100 mb-8 text-lg">
-              Join developers finding their perfect open source match
-            </p>
-            <Link
-              to="/search"
-              className="inline-block px-8 py-4 bg-white text-emerald-600 font-semibold rounded-lg text-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              Start Searching
-            </Link>
           </div>
         </div>
       </div>

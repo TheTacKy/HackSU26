@@ -107,15 +107,9 @@ function Search() {
       {/* Navigation Bar */}
       <nav className="bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-700 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <Link to="/" className="text-2xl font-bold text-white hover:text-emerald-400 transition-colors">
               HackSU26
-            </Link>
-            <Link
-              to="/"
-              className="px-4 py-2 text-zinc-300 hover:text-white transition-colors"
-            >
-              Home
             </Link>
           </div>
         </div>

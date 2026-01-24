@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html, body {
+    background-color: #18181b; /* zinc-900 */
+    color: white;
+    min-height: 100vh;
+  }
+  
+  #root {
+    min-height: 100vh;
+    background-color: #18181b; /* zinc-900 */
+  }
+}
