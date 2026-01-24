@@ -62,6 +62,18 @@ function Search() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Validate that tech_stack and interests are not empty
+    if (formData.tech_stack.length === 0) {
+      setError('Please add at least one technology to your tech stack.')
+      return
+    }
+    
+    if (formData.interests.length === 0) {
+      setError('Please add at least one interest.')
+      return
+    }
+    
     setLoading(true)
     setError(null)
     setResults(null)
