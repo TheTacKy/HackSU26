@@ -8,6 +8,7 @@ def generate_recommendations(repos, issues_map):
         "url": repo["html_url"],
         "stars": repo["stargazers_count"],
         "description": repo["description"],
+        "languages": repo.get("language", "Unknown")
         })
 
 
