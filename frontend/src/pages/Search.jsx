@@ -14,6 +14,9 @@ function Search() {
 
   const [currentTechStack, setCurrentTechStack] = useState('')
   const [currentInterest, setCurrentInterest] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [results, setResults] = useState(null)
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -59,8 +62,32 @@ function Search() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    // TODO: Implement API call to backend
-    console.log('Form submitted:', formData)
+    setLoading(true)
+    setError(null)
+    setResults(null)
+
+    try {
+      const response = await fetch('http://localhost:8000/match', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setResults(data)
+      console.log('Match results:', data)
+    } catch (err) {
+      setError(err.message || 'Failed to fetch matches. Please try again.')
+      console.error('Error submitting form:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -279,12 +306,31 @@ function Search() {
             <div className="pt-4">
               <button
                 type="submit"
-                className="w-full px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-lg transition-all duration-200 shadow-lg hover:shadow-emerald-500/50 transform hover:scale-[1.02]"
+                disabled={loading}
+                className="w-full px-6 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-lg transition-all duration-200 shadow-lg hover:shadow-emerald-500/50 transform hover:scale-[1.02] disabled:transform-none"
               >
-                Find Repositories
+                {loading ? 'Searching...' : 'Find Repositories'}
               </button>
             </div>
           </form>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mt-6 p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-200">
+              <p className="font-semibold">Error:</p>
+              <p>{error}</p>
+            </div>
+          )}
+
+          {/* Results */}
+          {results && (
+            <div className="mt-6 bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-8">
+              <h2 className="text-2xl font-bold text-white mb-4">Match Results</h2>
+              <pre className="bg-zinc-900 p-4 rounded-lg overflow-auto text-zinc-300 text-sm">
+                {JSON.stringify(results, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       </div>
     </div>
