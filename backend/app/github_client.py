@@ -17,7 +17,7 @@ else:
 
 def search_repositories(query, per_page=50, max_retries=3):
     """
-    Search GitHub repositories with rate limit handling.
+    Search GitHub repositories with rate limit and abuse detection handling.
     per_page: Number of results per page (max 100, default 30)
     max_retries: Maximum number of retries on rate limit
     """
@@ -51,12 +51,23 @@ def search_repositories(query, per_page=50, max_retries=3):
                 print(f"[GITHUB_API] Rate limit exceeded. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}...")
                 time.sleep(wait_time)
                 continue
+        elif response.status_code == 429:
+            # Abuse detection mechanism triggered
+            error_data = response.json() if response.text else {}
+            error_msg = error_data.get("message", "Abuse detection mechanism triggered")
+            print(f"[GITHUB_API] Abuse detection triggered: {error_msg}")
+            
+            # Wait longer for abuse detection (2-5 minutes)
+            wait_time = 120 + (attempt * 60)  # 2 min, 3 min, 4 min
+            print(f"[GITHUB_API] Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}...")
+            time.sleep(wait_time)
+            continue
         else:
             print(f"[GITHUB_API] Error: status={response.status_code}, response={response.text[:200]}")
             return []
     
     # All retries exhausted
-    print(f"[GITHUB_API] Rate limit exceeded after {max_retries} retries. Returning empty results.")
+    print(f"[GITHUB_API] Request failed after {max_retries} retries. Returning empty results.")
     return []
 
 

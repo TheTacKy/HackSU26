@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Cookies from 'js-cookie'
+import RepositoryCard from '../components/RepositoryCard'
 
 function Search() {
   const getInitialFormData = () => {
@@ -87,59 +88,28 @@ function Search() {
     setError(null)
 
     try {
-      // Fetch pages sequentially to avoid GitHub API rate limits
-      // Start with page 1, then fetch 2 and 3 if needed
-      console.log('Fetching page 1...')
-      const page1Response = await fetch(`http://localhost:8000/match?page=1`, {
+      // Only fetch page 1 - backend will return all repos, frontend will paginate
+      // This avoids making 3 separate searches (which would be 30+ GitHub API calls)
+      console.log('Fetching repositories (single search)...')
+      const response = await fetch(`http://localhost:8000/match?page=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
-      const page1Data = page1Response.ok ? await page1Response.json() : null
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const page1Data = await response.json()
       
       if (!page1Data || !page1Data.recommendations) {
         throw new Error('Failed to fetch repositories. Please try again.')
       }
       
-      // Only fetch pages 2 and 3 if page 1 was successful and we have pagination info
-      let page2Data = null
-      let page3Data = null
-      
-      if (page1Data.pagination && page1Data.pagination.total_pages > 1) {
-        console.log('Fetching page 2...')
-        const page2Response = await fetch(`http://localhost:8000/match?page=2`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
-        })
-        page2Data = page2Response.ok ? await page2Response.json() : null
-        
-        if (page1Data.pagination.total_pages > 2) {
-          console.log('Fetching page 3...')
-          const page3Response = await fetch(`http://localhost:8000/match?page=3`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData),
-          })
-          page3Data = page3Response.ok ? await page3Response.json() : null
-        }
-      }
-
-      if (!page1Data || !page1Data.recommendations) {
-        throw new Error('Failed to fetch repositories. Please try again.')
-      }
-
-      // Combine all recommendations from all pages
-      const allRecommendations = []
-      if (page1Data.recommendations && Array.isArray(page1Data.recommendations)) {
-        allRecommendations.push(...page1Data.recommendations)
-      }
-      if (page2Data?.recommendations && Array.isArray(page2Data.recommendations)) {
-        allRecommendations.push(...page2Data.recommendations)
-      }
-      if (page3Data?.recommendations && Array.isArray(page3Data.recommendations)) {
-        allRecommendations.push(...page3Data.recommendations)
-      }
+      // The backend returns all repos (up to 36) on page 1, so we can paginate client-side
+      // No need to fetch pages 2 and 3 separately - this saves 20+ GitHub API calls!
+      const allRecommendations = page1Data.recommendations || []
 
       // Cache all recommendations
       setCachedAllRecommendations(allRecommendations)
@@ -413,93 +383,7 @@ function Search() {
               )}
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {results.map((repo, index) => (
-                  <div
-                    key={index}
-                    className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-sky-500/50 transition-all duration-200 flex flex-col"
-                  >
-                    {/* Repository Header */}
-                    <div className="mb-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <a
-                          href={repo.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xl font-bold text-sky-400 hover:text-sky-300 transition-colors line-clamp-1"
-                        >
-                          {repo.name}
-                        </a>
-                        <div className="flex items-center gap-1 text-yellow-400 ml-2 flex-shrink-0">
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          <span className="text-sm font-semibold">{repo.stars}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Language Badge */}
-                      {repo.language && (
-                        <div className="inline-flex items-center px-2 py-1 bg-sky-600/20 text-sky-300 rounded-md text-xs font-medium mb-2">
-                          {repo.language}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-zinc-300 text-sm mb-4 line-clamp-3 flex-grow">
-                      {repo.description || "No description available"}
-                    </p>
-
-                    {/* Topics */}
-                    {repo.topics && repo.topics.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-4">
-                        {repo.topics.slice(0, 3).map((topic, topicIndex) => (
-                          <span
-                            key={topicIndex}
-                            className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded text-xs"
-                          >
-                            {topic}
-                          </span>
-                        ))}
-                        {repo.topics.length > 3 && (
-                          <span className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded text-xs">
-                            +{repo.topics.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Issues Section */}
-                    {repo.issues && repo.issues.length > 0 && (
-                      <div className="mt-auto pt-4 border-t border-zinc-700">
-                        <h4 className="text-sm font-semibold text-white mb-2">
-                          Good First Issues ({repo.issues_count})
-                        </h4>
-                        <div className="space-y-2 max-h-32 overflow-y-auto bg-zinc-900/50 rounded-lg p-2 scrollbar-hide">
-                          {repo.issues.map((issue, issueIndex) => (
-                            <a
-                              key={issueIndex}
-                              href={issue.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block text-xs text-sky-400 hover:text-sky-300 transition-colors line-clamp-1 hover:underline"
-                            >
-                              #{issue.number} {issue.title}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* View Repository Button */}
-                    <a
-                      href={repo.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-4 w-full px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg text-sm text-center transition-colors"
-                    >
-                      View Repository
-                    </a>
-                  </div>
+                  <RepositoryCard key={index} repo={repo} />
                 ))}
               </div>
               

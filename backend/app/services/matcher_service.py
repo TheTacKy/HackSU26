@@ -88,24 +88,43 @@ def run_matcher(profile, page=1):
             }
         }
 
-    issues_map = {}
-    for repo in paginated_repos:
-        issues_map[repo["full_name"]] = fetch_issues(repo, persona["experience"])
-
-    recommendations = generate_recommendations(paginated_repos, issues_map)
-    
-    # Calculate total pages (assuming we have at least 36 repos ranked)
-    total_repos = len(ranked_repos)
-    total_pages = min(3, (total_repos + repos_per_page - 1) // repos_per_page)
-    
-    # Add Gemini response to the results for debugging
-    return {
-        "recommendations": recommendations,
-        "gemini_response": gemini_response,
-        "pagination": {
-            "current_page": page,
-            "total_pages": total_pages,
-            "repos_per_page": repos_per_page,
-            "total_repos": total_repos
+    # For page 1, return ALL repos (exactly 36) so frontend can paginate client-side
+    # This avoids re-searching for pages 2 and 3
+    if page == 1:
+        # We already have exactly 36 repos from find_repos, so use all of them
+        repos_to_process = ranked_repos[:36]  # Exactly 36 repos (3 pages × 12)
+        issues_map = {}
+        print(f"[MATCHER] Fetching issues for {len(repos_to_process)} repos...")
+        for repo in repos_to_process:
+            issues_map[repo["full_name"]] = fetch_issues(repo, persona["experience"])
+        
+        recommendations = generate_recommendations(repos_to_process, issues_map)
+        
+        total_repos = len(repos_to_process)
+        total_pages = min(3, (total_repos + repos_per_page - 1) // repos_per_page)
+        
+        print(f"[MATCHER] Returning {len(recommendations)} repos for client-side pagination (single GitHub API call used)")
+        return {
+            "recommendations": recommendations,  # All 36 repos, frontend will paginate
+            "gemini_response": gemini_response,
+            "pagination": {
+                "current_page": 1,
+                "total_pages": total_pages,
+                "repos_per_page": repos_per_page,
+                "total_repos": total_repos
+            }
         }
-    }
+    else:
+        # For pages 2 and 3, we shouldn't reach here if frontend is caching properly
+        # But if we do, return empty (frontend should use cache)
+        print(f"[MATCHER] Warning: Page {page} requested but should use cached data")
+        return {
+            "recommendations": [],
+            "gemini_response": "Please use cached results from page 1",
+            "pagination": {
+                "current_page": page,
+                "total_pages": 0,
+                "repos_per_page": repos_per_page,
+                "total_repos": 0
+            }
+        }
