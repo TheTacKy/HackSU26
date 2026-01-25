@@ -8,11 +8,15 @@ def extract_keywords(interests_prompt):
     Extract and expand keywords from user interests prompt using OpenAI.
     Returns a list of keywords that can be used for GitHub repository searches.
     """
+    print(f"\n[KEYWORD_EXTRACTION] Starting keyword extraction")
+    print(f"[KEYWORD_EXTRACTION] Input prompt: {interests_prompt[:200]}...")
+    
     if not interests_prompt or not interests_prompt.strip():
+        print("[KEYWORD_EXTRACTION] Empty prompt, returning default: ['open source']")
         return ["open source"]
     
     if not OPENAI_API_KEY:
-        print("Warning: OPENAI_API_KEY not found. Using fallback keyword extraction.")
+        print("[KEYWORD_EXTRACTION] Warning: OPENAI_API_KEY not found. Using fallback keyword extraction.")
         return _fallback_keyword_extraction(interests_prompt)
     
     # Create OpenAI client
@@ -60,13 +64,14 @@ Keep keywords concise (1-3 words max per keyword)."""
         keywords = cleaned_keywords[:10]
         
         if not keywords:
+            print("[KEYWORD_EXTRACTION] No keywords extracted, using fallback")
             return _fallback_keyword_extraction(interests_prompt)
         
-        print(f"Extracted keywords: {keywords}")
+        print(f"[KEYWORD_EXTRACTION] Successfully extracted {len(keywords)} keywords: {keywords}")
         return keywords
         
     except Exception as e:
-        print(f"Error in keyword extraction: {e}. Using fallback method.")
+        print(f"[KEYWORD_EXTRACTION] Error in keyword extraction: {e}. Using fallback method.")
         return _fallback_keyword_extraction(interests_prompt)
 
 
@@ -74,6 +79,7 @@ def _fallback_keyword_extraction(interests_prompt):
     """
     Fallback keyword extraction using simple regex when OpenAI is unavailable.
     """
+    print("[KEYWORD_EXTRACTION] Using fallback regex extraction")
     stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'i', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'me', 'you', 'him', 'her', 'us', 'them', 'what', 'which', 'who', 'whom', 'whose', 'where', 'when', 'why', 'how', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'some', 'looking', 'contribute', 'open', 'source', 'help', 'coding', 'features', 'might', 'need'}
     
     # Extract words (alphanumeric, at least 3 chars) and filter out stop words
@@ -81,6 +87,8 @@ def _fallback_keyword_extraction(interests_prompt):
     keywords = [word for word in words if word not in stop_words][:10]
     
     if not keywords:
+        print("[KEYWORD_EXTRACTION] Fallback returned no keywords, using default: ['open source']")
         return ["open source"]
     
+    print(f"[KEYWORD_EXTRACTION] Fallback extracted {len(keywords)} keywords: {keywords}")
     return keywords

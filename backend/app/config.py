@@ -1,10 +1,8 @@
-import os
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
+# Load .env file directly (not from OS environment variables)
+env_vars = dotenv_values(".env")
 
-load_dotenv()
-
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_TOKEN = env_vars.get("GITHUB_TOKEN")
+OPENAI_API_KEY = env_vars.get("OPENAI_API_KEY")
+GEMINI_API_KEY = env_vars.get("GEMINI_API_KEY")

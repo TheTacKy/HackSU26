@@ -49,17 +49,21 @@ def rank_repos(repos, persona):
     num_repos = len(repos)
     
     # Ranking prompt - emphasizes user interests for ranking
-    prompt = f"""Rank these {num_repos} repos for: {persona_desc}
+    prompt = f"""Rank these {num_repos} GitHub repositories for a user who wants to contribute.
 
-Repos:
+User profile: {persona_desc}
+
+Repositories:
 {repos_text}
 
-IMPORTANT: Rank by priority:
-1. Interest match - How well does the repo description/topics match user interests: {user_interests}
-2. Tech stack match - Does the repo use technologies from: {user_tech_stack}
-3. Skill level fit - Is it appropriate for {persona.get('level', 'N/A')} level with {persona.get('experience', 'N/A')} experience
+Ranking criteria (in order of importance):
+1. Interest match - How well does the repo description/topics match: {user_interests}
+2. Tech stack match - Does it use: {user_tech_stack}
+3. Skill level fit - Appropriate for {persona.get('level', 'N/A')} level
 
-Return ONLY comma-separated numbers (0-indexed) from 0-{num_repos-1}, e.g., 3,1,5,0,2,4,7,8,6,9,10,11,12..."""
+CRITICAL: You MUST return ONLY a comma-separated list of numbers from 0 to {num_repos-1} representing the ranked order (best match first).
+Example for 5 repos: 2,0,4,1,3
+Do NOT include any text, explanations, or other content. Only numbers separated by commas."""
 
     max_retries = 2
     retry_count = 0
@@ -71,7 +75,7 @@ Return ONLY comma-separated numbers (0-indexed) from 0-{num_repos-1}, e.g., 3,1,
                 response = client.chat.completions.create(
                     model='gpt-4o-mini',  # Using cost-effective model, can change to gpt-4o if needed
                     messages=[
-                        {"role": "system", "content": "You are a helpful assistant that ranks GitHub repositories based on user interests and tech stack. Prioritize repositories that match user interests. Return only comma-separated numbers (0-indexed)."},
+                        {"role": "system", "content": "You are a ranking system. You MUST return ONLY a comma-separated list of numbers (0-indexed) representing repository indices in ranked order. Do NOT include any text, explanations, or other content. Example: 3,1,5,0,2,4"},
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.3
@@ -79,25 +83,49 @@ Return ONLY comma-separated numbers (0-indexed) from 0-{num_repos-1}, e.g., 3,1,
                 
                 # Extract text from OpenAI response
                 response_text = response.choices[0].message.content.strip()
+                print(f"[RANKING] Raw LLM response: {response_text[:200]}...")
                 
                 # Parse the response to get ranked indices
                 try:
-                    ranked_indices = [int(x.strip()) for x in response_text.split(',')]
+                    # Try to extract numbers from the response (handle cases where LLM adds text)
+                    # First, try to find a line that looks like comma-separated numbers
+                    lines = response_text.split('\n')
+                    number_line = None
+                    for line in lines:
+                        # Check if line contains mostly numbers and commas
+                        cleaned = line.replace(',', ' ').split()
+                        if len(cleaned) > 0 and all(part.strip().isdigit() for part in cleaned):
+                            number_line = line
+                            break
+                    
+                    # If no clean line found, try to extract numbers from the whole response
+                    if not number_line:
+                        # Remove all non-digit, non-comma characters and try to parse
+                        import re
+                        number_line = re.sub(r'[^\d,]', '', response_text)
+                    
+                    # Parse the comma-separated numbers
+                    ranked_indices = [int(x.strip()) for x in number_line.split(',') if x.strip().isdigit()]
+                    
                     # Validate indices
                     valid_indices = [idx for idx in ranked_indices if 0 <= idx < len(repos)]
+                    
                     # Add any missing indices at the end
                     all_indices = set(range(len(repos)))
                     missing_indices = sorted(list(all_indices - set(valid_indices)))
                     ranked_indices = valid_indices + missing_indices
                     
+                    print(f"[RANKING] Parsed {len(valid_indices)} valid indices out of {len(repos)} repos")
+                    
                     # Reorder repos based on ranking
                     ranked_repos = [repos[idx] for idx in ranked_indices if idx < len(repos)]
                     # Return repos with the OpenAI response for debugging
                     return ranked_repos, response_text
-                except (ValueError, IndexError):
+                except (ValueError, IndexError) as e:
                     # If parsing fails, return original order
-                    print(f"Warning: Failed to parse ranking response: {response_text}")
-                    return repos, f"Error parsing response: {response_text}"
+                    print(f"[RANKING] Warning: Failed to parse ranking response: {e}")
+                    print(f"[RANKING] Response was: {response_text[:500]}")
+                    return repos, f"Error parsing response: {response_text[:200]}"
             except openai.AuthenticationError as e:
                 # API key error
                 print(f"Warning: OpenAI API key is invalid or expired. Please update OPENAI_API_KEY in .env file. Returning repos in original order.")
