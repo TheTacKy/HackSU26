@@ -8,6 +8,11 @@ function Home() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-white">HackSU26</h1>
+            <div className="space-x-6">
+              <Link to="/code-of-conduct" className="text-zinc-300 hover:text-emerald-400 transition-colors">
+                Code of Conduct
+              </Link>
+            </div>
           </div>
         </div>
       </nav>

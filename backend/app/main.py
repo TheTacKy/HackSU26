@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.schemas import UserProfile
+from app.schemas import UserProfile, RecommendationRequest
 from app.services.matcher_service import run_matcher
+from app.agents.recommendation_agent import get_personalized_recommendations
 
 
 app = FastAPI()
@@ -20,3 +21,25 @@ app.add_middleware(
 @app.post("/match")
 def match(profile: UserProfile):
     return run_matcher(profile)
+
+
+@app.post("/recommendations")
+def get_recommendations(request: RecommendationRequest):
+    """
+    Get personalized repository recommendations based on user interests.
+    
+    Args:
+        request: RecommendationRequest containing interests, skills, and experience_level
+    
+    Returns:
+        List of recommended repositories with descriptions
+    """
+    try:
+        recommendations = get_personalized_recommendations(
+            interests=request.interests,
+            skills=request.skills,
+            experience_level=request.experience_level
+        )
+        return {"status": "success", "data": recommendations}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

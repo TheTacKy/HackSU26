@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import RecommendationsComponent from '../components/RecommendationsComponent'
 
 function Search() {
   const [formData, setFormData] = useState({
@@ -17,6 +18,7 @@ function Search() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [results, setResults] = useState(null)
+  const [activeTab, setActiveTab] = useState('profile-match')
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -107,10 +109,18 @@ function Search() {
       {/* Navigation Bar */}
       <nav className="bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-700 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center">
+          <div className="flex items-center justify-between">
             <Link to="/" className="text-2xl font-bold text-white hover:text-emerald-400 transition-colors">
               HackSU26
             </Link>
+            <div className="space-x-6">
+              <Link to="/" className="text-zinc-300 hover:text-emerald-400 transition-colors">
+                Home
+              </Link>
+              <Link to="/code-of-conduct" className="text-zinc-300 hover:text-emerald-400 transition-colors">
+                Code of Conduct
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -123,16 +133,43 @@ function Search() {
               Find Your Perfect Repository
             </h1>
             <p className="text-zinc-400 text-lg">
-              Tell us about yourself and we&apos;ll match you with the best open source projects
+              Choose your preferred way to discover open source projects
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-8 space-y-6">
-            {/* Name */}
+          {/* Tabs */}
+          <div className="flex gap-4 mb-8 border-b border-zinc-700">
+            <button
+              onClick={() => setActiveTab('profile-match')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'profile-match'
+                  ? 'text-emerald-400 border-b-2 border-emerald-400'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Profile Matching
+            </button>
+            <button
+              onClick={() => setActiveTab('ai-recommendations')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'ai-recommendations'
+                  ? 'text-emerald-400 border-b-2 border-emerald-400'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              AI Recommendations
+            </button>
+          </div>
+
+          {/* Profile Matching Tab */}
+          {activeTab === 'profile-match' && (
             <div>
-              <label htmlFor="name" className="block text-white font-semibold mb-2">
-                Name
-              </label>
+              <form onSubmit={handleSubmit} className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-8 space-y-6">
+              {/* Name */}
+              <div>
+                <label htmlFor="name" className="block text-white font-semibold mb-2">
+                  Name
+                </label>
               <input
                 type="text"
                 id="name"
@@ -322,74 +359,60 @@ function Search() {
 
           {/* Error Message */}
           {error && (
-            <div className="mt-6 p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-200">
-              <p className="font-semibold">Error:</p>
-              <p>{error}</p>
+            <div className="mt-6 p-4 bg-red-900/30 border border-red-600 rounded-xl">
+              <p className="text-red-200">{error}</p>
             </div>
           )}
 
-          {/* Results Board */}
+          {/* Results Section */}
           {results && results.length > 0 && (
             <div className="mt-8">
-              <h2 className="text-3xl font-bold text-white mb-6 text-center">
-                Recommended Repositories
+              <h2 className="text-2xl font-bold text-white mb-6">
+                Recommended Repositories ({results.length})
               </h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid gap-6">
                 {results.map((repo, index) => (
-                  <div
-                    key={index}
-                    className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-emerald-500/50 transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/20 flex flex-col"
-                  >
+                  <div key={index} className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-emerald-500/50 transition-colors flex flex-col">
                     {/* Repository Header */}
-                    <div className="mb-4">
-                      <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
                         <a
                           href={repo.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xl font-bold text-emerald-400 hover:text-emerald-300 transition-colors line-clamp-1"
+                          className="text-xl font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
                         >
                           {repo.name}
                         </a>
-                        <div className="flex items-center gap-1 text-yellow-400 ml-2 flex-shrink-0">
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          <span className="text-sm font-semibold">{repo.stars}</span>
-                        </div>
+                        <p className="text-sm text-zinc-400 mt-1">{repo.full_name}</p>
                       </div>
-                      
-                      {/* Language Badge */}
-                      {repo.language && (
-                        <div className="inline-flex items-center px-2 py-1 bg-emerald-600/20 text-emerald-300 rounded-md text-xs font-medium mb-2">
-                          {repo.language}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 bg-yellow-900/30 px-3 py-1 rounded-full">
+                        <span className="text-yellow-300 text-sm">★</span>
+                        <span className="text-yellow-300 font-semibold">{repo.stars || 0}</span>
+                      </div>
                     </div>
 
                     {/* Description */}
-                    <p className="text-zinc-300 text-sm mb-4 line-clamp-3 flex-grow">
-                      {repo.description || "No description available"}
-                    </p>
+                    <p className="text-zinc-300 mb-4 line-clamp-2">{repo.description}</p>
 
-                    {/* Topics */}
-                    {repo.topics && repo.topics.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-4">
-                        {repo.topics.slice(0, 3).map((topic, topicIndex) => (
-                          <span
-                            key={topicIndex}
-                            className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded text-xs"
-                          >
-                            {topic}
-                          </span>
-                        ))}
-                        {repo.topics.length > 3 && (
-                          <span className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded text-xs">
-                            +{repo.topics.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    {/* Language & Topics */}
+                    <div className="flex gap-2 mb-4 flex-wrap">
+                      {repo.language && (
+                        <span className="px-3 py-1 bg-emerald-900/30 border border-emerald-700 text-emerald-300 rounded-full text-sm">
+                          {repo.language}
+                        </span>
+                      )}
+                      {repo.topics && repo.topics.slice(0, 3).map((topic, topicIndex) => (
+                        <span key={topicIndex} className="px-3 py-1 bg-zinc-700 text-zinc-300 rounded-full text-sm">
+                          {topic}
+                        </span>
+                      ))}
+                      {repo.topics && repo.topics.length > 3 && (
+                        <span className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded text-xs">
+                          +{repo.topics.length - 3}
+                        </span>
+                      )}
+                    </div>
 
                     {/* Issues Section */}
                     {repo.issues && repo.issues.length > 0 && (
@@ -433,6 +456,13 @@ function Search() {
             <div className="mt-6 p-8 bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl text-center">
               <p className="text-zinc-400 text-lg">No repositories found. Try adjusting your search criteria.</p>
             </div>
+          )}
+            </div>
+          )}
+
+          {/* AI Recommendations Tab */}
+          {activeTab === 'ai-recommendations' && (
+            <RecommendationsComponent />
           )}
         </div>
       </div>

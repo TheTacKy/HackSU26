@@ -10,3 +10,9 @@ class UserProfile(BaseModel):
     open_source_experience: str
     occupation: str
     contribution_type: str
+
+
+class RecommendationRequest(BaseModel):
+    interests: str
+    skills: str
+    experience_level: str
