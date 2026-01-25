@@ -196,7 +196,7 @@ function Search() {
                 name="skill_level"
                 value={formData.skill_level}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 required
               >
                 <option value="">Select your skill level</option>
@@ -258,7 +258,7 @@ function Search() {
                 name="open_source_experience"
                 value={formData.open_source_experience}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 required
               >
                 <option value="">Select your experience</option>
@@ -296,7 +296,7 @@ function Search() {
                 name="contribution_type"
                 value={formData.contribution_type}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 required
               >
                 <option value="">Select contribution type</option>
