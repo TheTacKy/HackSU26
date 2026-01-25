@@ -3,27 +3,19 @@ from datetime import datetime, timedelta, timezone
 import re
 
 def find_repos(persona):
-    print(f"\n[REPO_SEARCH] Starting repository search")
-    print(f"[REPO_SEARCH] Persona keys: {list(persona.keys())}")
-    
     tech_stack = persona["stack"] if persona["stack"] else ["Python"]
-    print(f"[REPO_SEARCH] Tech stack: {tech_stack}")
     
     # Use extracted keywords from keyword extraction agent (if available)
-    # Otherwise fall back to simple extraction
     if "extracted_keywords" in persona and persona["extracted_keywords"]:
         interest_keywords = persona["extracted_keywords"]
-        print(f"[REPO_SEARCH] Using extracted keywords: {interest_keywords}")
     else:
         # Fallback: simple keyword extraction
         interests_prompt = persona.get("interests", "") or "open source"
-        print(f"[REPO_SEARCH] No extracted keywords found, using fallback extraction from: {interests_prompt}")
         stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'i', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'me', 'you', 'him', 'her', 'us', 'them', 'what', 'which', 'who', 'whom', 'whose', 'where', 'when', 'why', 'how', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once'}
         words = re.findall(r'\b\w{3,}\b', interests_prompt.lower())
         interest_keywords = [word for word in words if word not in stop_words][:10]
         if not interest_keywords:
             interest_keywords = ["open source"]
-        print(f"[REPO_SEARCH] Fallback keywords extracted: {interest_keywords}")
     
     # Normalize tech stack to lowercase for comparison
     tech_stack_lower = [tech.lower() for tech in tech_stack]
@@ -34,78 +26,116 @@ def find_repos(persona):
     total_repos_from_api = 0
     
     # Search for each interest keyword (without language restriction for broader results)
-    # Then filter by languages in tech stack
     six_months_ago = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
-    print(f"[REPO_SEARCH] Searching for repos updated after: {six_months_ago}")
     
-    # Limit to first 5 keywords to reduce API calls and avoid rate limits
-    limited_keywords = interest_keywords[:5]
-    if len(interest_keywords) > 5:
-        print(f"[REPO_SEARCH] Limiting to first 5 keywords to avoid rate limits: {limited_keywords}")
+    # Use top 3 keywords (most important) to maintain quality while reducing API calls
+    top_keywords = interest_keywords[:3] if len(interest_keywords) >= 3 else interest_keywords
     
-    for interest in limited_keywords:
-        # Search with interest and filters for open source, active, non-archived repos
-        # is:public ensures open source, archived:false excludes archived, has:issues ensures contributions possible
-        # pushed:>YYYY-MM-DD filters for repos with commits in the last 6 months
-        query = f"{interest}+is:public+archived:false+has:issues+pushed:>{six_months_ago}"
-        print(f"[REPO_SEARCH] Query 1 (interest only): {query}")
-        repos = search_repositories(query, per_page=50)
+    # Build combined keyword query using OR operator
+    # For multi-word keywords, wrap in quotes for exact phrase matching
+    keyword_terms = []
+    for keyword in top_keywords:
+        if ' ' in keyword:
+            keyword_terms.append(f'"{keyword}"')
+        else:
+            keyword_terms.append(keyword)
+    
+    # Combine with OR: "pokemon go" OR "augmented reality" OR "mobile games"
+    combined_keywords = " OR ".join(keyword_terms)
+    
+    # Strategy: Make 1-2 queries per language instead of 2 queries per keyword
+    # This reduces from 10+ calls to 3-4 calls while maintaining quality
+    
+    # Query 1: Combined keywords without language filter (broader search)
+    base_filters = f"is:public+archived:false+has:issues+pushed:>{six_months_ago}"
+    query_general = f"({combined_keywords})+{base_filters}"
+    repos_general = search_repositories(query_general, per_page=100)
+    total_queries += 1
+    total_repos_from_api += len(repos_general)
+    
+    # If combined OR query returns 0 results, try individual keyword queries as fallback
+    if len(repos_general) == 0 and len(top_keywords) > 1:
+        for keyword in top_keywords[:2]:  # Try top 2 keywords individually
+            query_individual = f"{keyword}+{base_filters}"
+            repos_individual = search_repositories(query_individual, per_page=50)
+            total_queries += 1
+            total_repos_from_api += len(repos_individual)
+            
+            # Process individual results
+            for repo in repos_individual:
+                repo_id = repo["id"]
+                repo_language = repo.get("language", "").lower() if repo.get("language") else ""
+                matches_language = any(
+                    tech == repo_language or 
+                    tech in repo_language or 
+                    repo_language in tech
+                    for tech in tech_stack_lower
+                ) if repo_language else False
+                
+                if (matches_language or not repo_language) and not repo.get("archived", False) and repo.get("private", False) == False:
+                    if repo_id not in all_repos:
+                        all_repos[repo_id] = repo
+                        repo_scores[repo_id] = 0
+                    repo_scores[repo_id] += 2  # Score for individual keyword match
+                    if repo_language in tech_stack_lower:
+                        repo_scores[repo_id] += 2
+    
+    # Process general results and score them
+    for repo in repos_general:
+        repo_id = repo["id"]
+        repo_language = repo.get("language", "").lower() if repo.get("language") else ""
+        
+        # Check if repo language matches any in tech stack
+        matches_language = any(
+            tech == repo_language or 
+            tech in repo_language or 
+            repo_language in tech
+            for tech in tech_stack_lower
+        ) if repo_language else False
+        
+        # Include repos that match at least one language, or if no language specified
+        if (matches_language or not repo_language) and not repo.get("archived", False) and repo.get("private", False) == False:
+            if repo_id not in all_repos:
+                all_repos[repo_id] = repo
+                repo_scores[repo_id] = 0
+            
+            # Score based on keyword matches in name/description
+            repo_name = (repo.get("name", "") or "").lower()
+            repo_desc = (repo.get("description", "") or "").lower()
+            repo_text = f"{repo_name} {repo_desc}"
+            
+            # Score based on how many keywords match
+            keyword_matches = sum(1 for kw in top_keywords if kw.lower() in repo_text)
+            repo_scores[repo_id] += keyword_matches
+            
+            # Bonus for exact language match
+            if repo_language in tech_stack_lower:
+                repo_scores[repo_id] += 2
+    
+    # Query 2-N: Combined keywords WITH language filter for each tech stack language
+    for language in tech_stack:
+        query_with_lang = f"({combined_keywords})+language:{language}+{base_filters}"
+        repos_lang = search_repositories(query_with_lang, per_page=100)
         total_queries += 1
-        total_repos_from_api += len(repos)
-        print(f"[REPO_SEARCH]   -> Found {len(repos)} repos from API")
-    
-        # Filter repos by languages in tech stack and score them
-        for repo in repos:
+        total_repos_from_api += len(repos_lang)
+        
+        for repo in repos_lang:
             repo_id = repo["id"]
-            repo_language = repo.get("language", "").lower() if repo.get("language") else ""
-            
-            # Check if repo language matches any in tech stack
-            matches_language = any(
-                tech == repo_language or 
-                tech in repo_language or 
-                repo_language in tech
-                for tech in tech_stack_lower
-            ) if repo_language else False
-            
-            # Include repos that match at least one language, or if no language specified
-            # Also verify repo is open source and not archived (double-check)
-            if (matches_language or not repo_language) and not repo.get("archived", False) and repo.get("private", False) == False:
+            # Verify repo is open source and not archived
+            if not repo.get("archived", False) and repo.get("private", False) == False:
                 if repo_id not in all_repos:
                     all_repos[repo_id] = repo
                     repo_scores[repo_id] = 0
                 
-                # Score based on number of matching interests
-                repo_scores[repo_id] += 1
+                # Higher score for explicit language matches (these are more relevant)
+                repo_scores[repo_id] += 3
                 
-                # Bonus for exact language match
-                if repo_language in tech_stack_lower:
-                    repo_scores[repo_id] += 0.5
-        
-        # Also search with explicit language filters for more precise matches
-        for language in tech_stack:
-            # Ensure open source, active, non-archived repos with issues enabled
-            # Use same 6-month filter for recent activity
-            query_with_lang = f"{interest}+language:{language}+is:public+archived:false+has:issues+pushed:>{six_months_ago}"
-            print(f"[REPO_SEARCH] Query 2 (interest + language): {query_with_lang}")
-            repos_lang = search_repositories(query_with_lang, per_page=50)
-            total_queries += 1
-            total_repos_from_api += len(repos_lang)
-            print(f"[REPO_SEARCH]   -> Found {len(repos_lang)} repos from API")
-            
-            for repo in repos_lang:
-                repo_id = repo["id"]
-                # Verify repo is open source and not archived (double-check)
-                if not repo.get("archived", False) and repo.get("private", False) == False:
-                    if repo_id not in all_repos:
-                        all_repos[repo_id] = repo
-                        repo_scores[repo_id] = 0
-                    
-                    # Higher score for explicit language matches
-                    repo_scores[repo_id] += 1.5
-    
-    print(f"[REPO_SEARCH] Total queries made: {total_queries}")
-    print(f"[REPO_SEARCH] Total repos from API: {total_repos_from_api}")
-    print(f"[REPO_SEARCH] Unique repos collected: {len(all_repos)}")
+                # Additional bonus for keyword matches in language-specific results
+                repo_name = (repo.get("name", "") or "").lower()
+                repo_desc = (repo.get("description", "") or "").lower()
+                repo_text = f"{repo_name} {repo_desc}"
+                keyword_matches = sum(1 for kw in top_keywords if kw.lower() in repo_text)
+                repo_scores[repo_id] += keyword_matches
     
     # Filter out any archived or private repos and check for recent activity
     filtered_repos = []
@@ -115,7 +145,6 @@ def find_repos(persona):
     skipped_no_date = 0
     
     three_months_ago = datetime.now(timezone.utc) - timedelta(days=90)
-    print(f"[REPO_SEARCH] Filtering repos updated after: {three_months_ago.strftime('%Y-%m-%d')}")
     
     for repo in all_repos.values():
         if repo.get("archived", False):
@@ -143,19 +172,11 @@ def find_repos(persona):
                     skipped_old += 1
             except (ValueError, AttributeError, TypeError) as e:
                 # If date parsing fails, include the repo anyway (better to include than exclude)
-                print(f"[REPO_SEARCH] Warning: Could not parse updated_at for repo {repo.get('name', 'unknown')}: {e}")
                 filtered_repos.append(repo)
         else:
             # If no updated_at, skip this repo (likely inactive)
             skipped_no_date += 1
             continue
-    
-    print(f"[REPO_SEARCH] Filtering results:")
-    print(f"[REPO_SEARCH]   - Skipped archived: {skipped_archived}")
-    print(f"[REPO_SEARCH]   - Skipped private: {skipped_private}")
-    print(f"[REPO_SEARCH]   - Skipped old (>3 months): {skipped_old}")
-    print(f"[REPO_SEARCH]   - Skipped no date: {skipped_no_date}")
-    print(f"[REPO_SEARCH]   - Final filtered repos: {len(filtered_repos)}")
     
     # Sort repos by score (highest first), then by stars as tiebreaker
     sorted_repos = sorted(
@@ -165,5 +186,4 @@ def find_repos(persona):
     )
     # Return up to 50 repos for ranking (enough for 3 pages of 12 + buffer)
     result = sorted_repos[:50]
-    print(f"[REPO_SEARCH] Returning {len(result)} repos (top 50)")
     return result

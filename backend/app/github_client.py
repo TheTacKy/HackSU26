@@ -22,7 +22,6 @@ def search_repositories(query, per_page=50, max_retries=3):
     max_retries: Maximum number of retries on rate limit
     """
     url = f"https://api.github.com/search/repositories?q={query}&sort=stars&per_page={per_page}"
-    print(f"[GITHUB_API] Searching: {url}")
     
     for attempt in range(max_retries):
         response = requests.get(url, headers=HEADERS)
@@ -31,7 +30,9 @@ def search_repositories(query, per_page=50, max_retries=3):
             data = response.json()
             items = data.get("items", [])
             total_count = data.get("total_count", 0)
-            print(f"[GITHUB_API] Response: status=200, total_count={total_count}, items_returned={len(items)}")
+            remaining = response.headers.get("X-RateLimit-Remaining", "unknown")
+            limit = response.headers.get("X-RateLimit-Limit", "unknown")
+            print(f"  -> Found {len(items)} repos (total: {total_count}, rate limit: {remaining}/{limit})")
             return items
         elif response.status_code == 403:
             # Rate limit exceeded
@@ -42,50 +43,63 @@ def search_repositories(query, per_page=50, max_retries=3):
             retry_after = response.headers.get("Retry-After")
             if retry_after:
                 wait_time = int(retry_after) + 1
-                print(f"[GITHUB_API] Rate limit exceeded. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}...")
+                print(f"  -> Rate limit exceeded. Waiting {wait_time}s before retry {attempt + 1}/{max_retries}...")
                 time.sleep(wait_time)
                 continue
             else:
                 # Default wait time if no retry-after header
                 wait_time = (attempt + 1) * 10  # Exponential backoff
-                print(f"[GITHUB_API] Rate limit exceeded. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}...")
+                print(f"  -> Rate limit exceeded. Waiting {wait_time}s before retry {attempt + 1}/{max_retries}...")
                 time.sleep(wait_time)
                 continue
         else:
-            print(f"[GITHUB_API] Error: status={response.status_code}, response={response.text[:200]}")
+            print(f"  -> Error: status={response.status_code}")
             return []
     
     # All retries exhausted
-    print(f"[GITHUB_API] Rate limit exceeded after {max_retries} retries. Returning empty results.")
+    print(f"  -> Rate limit exceeded after {max_retries} retries. Returning empty results.")
     return []
 
 
 
 
-def get_issues(owner, repo, label):
+def get_issues(owner, repo, label, timeout=5):
+    """
+    Fetch issues with a label. Added timeout to prevent hanging.
+    """
     url = f"https://api.github.com/repos/{owner}/{repo}/issues?labels={label}&state=open&per_page=10"
-    response = requests.get(url, headers=HEADERS)
-    if response.status_code == 200:
-        issues = response.json()
-        # Filter out pull requests (GitHub API returns both issues and PRs)
-        # PRs have a 'pull_request' key, issues don't
-        issues_only = [issue for issue in issues if 'pull_request' not in issue]
-        # Ensure we return a list (GitHub API returns a list, but handle edge cases)
-        return issues_only if isinstance(issues_only, list) else []
-    return []
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=timeout)
+        if response.status_code == 200:
+            issues = response.json()
+            # Filter out pull requests (GitHub API returns both issues and PRs)
+            # PRs have a 'pull_request' key, issues don't
+            issues_only = [issue for issue in issues if 'pull_request' not in issue]
+            # Ensure we return a list (GitHub API returns a list, but handle edge cases)
+            return issues_only if isinstance(issues_only, list) else []
+        return []
+    except requests.Timeout:
+        return []
+    except Exception as e:
+        return []
 
 
-def get_all_open_issues(owner, repo):
-    """Fetch all open issues without label filter"""
+def get_all_open_issues(owner, repo, timeout=5):
+    """Fetch all open issues without label filter. Added timeout to prevent hanging."""
     url = f"https://api.github.com/repos/{owner}/{repo}/issues?state=open&per_page=10"
-    response = requests.get(url, headers=HEADERS)
-    if response.status_code == 200:
-        issues = response.json()
-        # Filter out pull requests (GitHub API returns both issues and PRs)
-        # PRs have a 'pull_request' key, issues don't
-        issues_only = [issue for issue in issues if 'pull_request' not in issue]
-        return issues_only if isinstance(issues_only, list) else []
-    return []
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=timeout)
+        if response.status_code == 200:
+            issues = response.json()
+            # Filter out pull requests (GitHub API returns both issues and PRs)
+            # PRs have a 'pull_request' key, issues don't
+            issues_only = [issue for issue in issues if 'pull_request' not in issue]
+            return issues_only if isinstance(issues_only, list) else []
+        return []
+    except requests.Timeout:
+        return []
+    except Exception as e:
+        return []
 
 
 

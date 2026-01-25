@@ -14,7 +14,6 @@ def rank_repos(repos, persona):
         return [], "No repositories to rank"
     
     if not OPENAI_API_KEY:
-        print("Warning: OPENAI_API_KEY not found. Returning repos in original order.")
         return repos, "OPENAI_API_KEY not found"
     
     # Create OpenAI client
@@ -83,7 +82,6 @@ Do NOT include any text, explanations, or other content. Only numbers separated 
                 
                 # Extract text from OpenAI response
                 response_text = response.choices[0].message.content.strip()
-                print(f"[RANKING] Raw LLM response: {response_text[:200]}...")
                 
                 # Parse the response to get ranked indices
                 try:
@@ -114,8 +112,6 @@ Do NOT include any text, explanations, or other content. Only numbers separated 
                     all_indices = set(range(len(repos)))
                     missing_indices = sorted(list(all_indices - set(valid_indices)))
                     ranked_indices = valid_indices + missing_indices
-                    
-                    print(f"[RANKING] Parsed {len(valid_indices)} valid indices out of {len(repos)} repos")
                     
                     # Reorder repos based on ranking
                     ranked_repos = [repos[idx] for idx in ranked_indices if idx < len(repos)]

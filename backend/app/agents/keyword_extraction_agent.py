@@ -8,15 +8,10 @@ def extract_keywords(interests_prompt):
     Extract and expand keywords from user interests prompt using OpenAI.
     Returns a list of keywords that can be used for GitHub repository searches.
     """
-    print(f"\n[KEYWORD_EXTRACTION] Starting keyword extraction")
-    print(f"[KEYWORD_EXTRACTION] Input prompt: {interests_prompt[:200]}...")
-    
     if not interests_prompt or not interests_prompt.strip():
-        print("[KEYWORD_EXTRACTION] Empty prompt, returning default: ['open source']")
         return ["open source"]
     
     if not OPENAI_API_KEY:
-        print("[KEYWORD_EXTRACTION] Warning: OPENAI_API_KEY not found. Using fallback keyword extraction.")
         return _fallback_keyword_extraction(interests_prompt)
     
     # Create OpenAI client
@@ -64,14 +59,11 @@ Keep keywords concise (1-3 words max per keyword)."""
         keywords = cleaned_keywords[:10]
         
         if not keywords:
-            print("[KEYWORD_EXTRACTION] No keywords extracted, using fallback")
             return _fallback_keyword_extraction(interests_prompt)
         
-        print(f"[KEYWORD_EXTRACTION] Successfully extracted {len(keywords)} keywords: {keywords}")
         return keywords
         
     except Exception as e:
-        print(f"[KEYWORD_EXTRACTION] Error in keyword extraction: {e}. Using fallback method.")
         return _fallback_keyword_extraction(interests_prompt)
 
 
