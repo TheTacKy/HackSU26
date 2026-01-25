@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from app.schemas import UserProfile
 from app.services.matcher_service import run_matcher
@@ -18,5 +18,9 @@ app.add_middleware(
 
 
 @app.post("/match")
-def match(profile: UserProfile):
-    return run_matcher(profile)
+def match(profile: UserProfile, page: int = Query(1, ge=1, le=3)):
+    """
+    Match user profile with repositories.
+    page: Page number (1-3), each page contains 12 repositories
+    """
+    return run_matcher(profile, page=page)

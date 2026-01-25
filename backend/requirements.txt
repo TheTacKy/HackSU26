@@ -3,4 +3,3 @@ uvicorn
 requests
 openai
 python-dotenv
-google-genai

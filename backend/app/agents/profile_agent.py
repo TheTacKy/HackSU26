@@ -5,6 +5,6 @@ def build_persona(profile):
     "level": profile.skill_level,
     "interests": profile.interests,
     "experience": profile.open_source_experience,
-    "occupation": profile.occupation,
-    "goal": profile.contribution_type
+    "occupation": profile.occupation or "N/A",
+    "goal": profile.contribution_type or "N/A"
     }
