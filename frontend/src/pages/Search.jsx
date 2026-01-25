@@ -198,7 +198,7 @@ function Search() {
     
     // Validate that tech_stack and interests are not empty
     if (formData.tech_stack.length === 0) {
-      setError('Please add at least one technology to your tech stack.')
+      setError('Please add at least one coding language.')
       return
     }
     
@@ -279,10 +279,10 @@ function Search() {
               />
             </div>
 
-            {/* Tech Stack */}
+            {/* Coding Languages */}
             <div>
               <label className="block text-white font-semibold mb-2">
-                Tech Stack
+                Coding Languages
               </label>
               <div className="flex gap-2 mb-2">
                 <input

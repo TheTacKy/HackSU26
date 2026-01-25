@@ -2,13 +2,19 @@
 
 A web app that matches developers with open source GitHub repositories based on their interests, coding language, and experience level. Repo Scout uses OpenAI to extract keywords from user interests, searches GitHub for relevant repositories, and intelligently ranks them to help developers find the perfect projects to contribute to.
 
-## Features
+## The Process
 
-- **AI-Powered Keyword Extraction**: Uses OpenAI to extract relevant keywords from natural language descriptions
-- **Smart Repository Matching**: Searches GitHub repositories based on coding languages, interests, and activity level
-- **Intelligent Ranking**: AI-powered ranking system that considers user profile, interests, and skill level
-- **Issue Discovery**: Automatically fetches "good first issue" and "help wanted" labels for each repository
-- **Modern UI**: Beautiful, responsive interface built with React and Tailwind CSS
+When a user inputs their description, interests, coding languages, and experience level, here's what happens in the backend:
+
+1. **Keyword Extraction (1st AI Call)**: OpenAI extracts relevant keywords from the user's interests description.
+
+2. **Repository Search (GitHub API)**: The system searches GitHub repositories using the extracted keywords and user's coding languages, filtering for active, public repositories with issues enabled.
+
+3. **Repository Ranking (2nd AI Call)**: All found repositories are ranked by OpenAI based on how well they match the user's interests, coding languages, and skill level.
+
+4. **Issue Discovery**: Open issues are fetched in parallel for each repository, prioritizing "good first issue" or "help wanted" labels based on user experience.
+
+5. **Recommendation Generation**: Final recommendations are compiled with repository metadata and issues, then returned to the frontend.
 
 ## Setup
 

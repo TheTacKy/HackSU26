@@ -45,7 +45,7 @@ function Home() {
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Tell Us About Yourself</h3>
               <p className="text-zinc-400">
-                Share your interests, tech stack familiarity, programming languages, and experience level.
+                Share your interests, coding languages, and experience level.
               </p>
             </div>
 
@@ -89,8 +89,8 @@ function Home() {
                   </svg>
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-white mb-1">Tech Stack</h4>
-                  <p className="text-zinc-400">Your familiarity with different technologies and frameworks</p>
+                  <h4 className="text-lg font-semibold text-white mb-1">Coding Languages</h4>
+                  <p className="text-zinc-400">Programming languages you&apos;re comfortable working with</p>
                 </div>
               </div>
 
