@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Cookies from 'js-cookie'
+import RepositoryList from '../components/RepositoryList'
+import Pagination from '../components/Pagination'
 
 function Search() {
   const getInitialFormData = () => {
@@ -401,151 +403,16 @@ function Search() {
           )}
 
           {/* Results Board */}
-          {results && Array.isArray(results) && results.length > 0 && (
-            <div id="recommended-repositories" className="mt-8 scroll-mt-24">
-              <h2 className="text-3xl font-bold text-white mb-6 text-center">
-                Recommended Repositories
-              </h2>
-              {pagination && (
-                <div className="text-center text-zinc-400 mb-4">
-                  Page {pagination.current_page} of {pagination.total_pages} ({pagination.total_repos} repositories found)
-                </div>
-              )}
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {results.map((repo, index) => (
-                  <div
-                    key={index}
-                    className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-sky-500/50 transition-all duration-200 flex flex-col"
-                  >
-                    {/* Repository Header */}
-                    <div className="mb-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <a
-                          href={repo.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xl font-bold text-sky-400 hover:text-sky-300 transition-colors line-clamp-1"
-                        >
-                          {repo.name}
-                        </a>
-                        <div className="flex items-center gap-1 text-yellow-400 ml-2 flex-shrink-0">
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          <span className="text-sm font-semibold">{repo.stars}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Language Badge */}
-                      {repo.language && (
-                        <div className="inline-flex items-center px-2 py-1 bg-sky-600/20 text-sky-300 rounded-md text-xs font-medium mb-2">
-                          {repo.language}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-zinc-300 text-sm mb-4 line-clamp-3 flex-grow">
-                      {repo.description || "No description available"}
-                    </p>
-
-                    {/* Topics */}
-                    {repo.topics && repo.topics.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-4">
-                        {repo.topics.slice(0, 3).map((topic, topicIndex) => (
-                          <span
-                            key={topicIndex}
-                            className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded text-xs"
-                          >
-                            {topic}
-                          </span>
-                        ))}
-                        {repo.topics.length > 3 && (
-                          <span className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded text-xs">
-                            +{repo.topics.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Issues Section */}
-                    {repo.issues && repo.issues.length > 0 && (
-                      <div className="mt-auto pt-4 border-t border-zinc-700">
-                        <h4 className="text-sm font-semibold text-white mb-2">
-                          Good First Issues ({repo.issues_count})
-                        </h4>
-                        <div className="space-y-2 max-h-32 overflow-y-auto bg-zinc-900/50 rounded-lg p-2 scrollbar-hide">
-                          {repo.issues.map((issue, issueIndex) => (
-                            <a
-                              key={issueIndex}
-                              href={issue.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block text-xs text-sky-400 hover:text-sky-300 transition-colors line-clamp-1 hover:underline"
-                            >
-                              #{issue.number} {issue.title}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* View Repository Button */}
-                    <a
-                      href={repo.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-4 w-full px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg text-sm text-center transition-colors"
-                    >
-                      View Repository
-                    </a>
-                  </div>
-                ))}
-              </div>
-              
-              {/* Pagination Controls */}
-              {pagination && pagination.total_pages > 1 && (
-                <div className="mt-8 flex justify-center items-center gap-2">
-                  <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1 || loading}
-                    className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 text-white font-semibold rounded-lg transition-colors"
-                  >
-                    Previous
-                  </button>
-                  
-                  {[1, 2, 3].filter(page => page <= pagination.total_pages).map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      disabled={loading}
-                      className={`px-4 py-2 min-w-[3rem] font-semibold rounded-lg transition-colors ${
-                        currentPage === pageNum
-                          ? 'bg-sky-600 text-white'
-                          : 'bg-zinc-700 hover:bg-zinc-600 text-white disabled:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
-                  
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === pagination.total_pages || loading}
-                    className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 text-white font-semibold rounded-lg transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Empty Results */}
-          {results && Array.isArray(results) && results.length === 0 && (
-            <div className="mt-6 p-8 bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl text-center">
-              <p className="text-zinc-400 text-lg">No repositories found. Try adjusting your search criteria.</p>
-            </div>
+          {results && (
+            <>
+              <RepositoryList repositories={results} pagination={pagination} />
+              <Pagination
+                pagination={pagination}
+                currentPage={currentPage}
+                onPageChange={handlePageChange}
+                loading={loading}
+              />
+            </>
           )}
 
           {/* AI Response (for testing) */}

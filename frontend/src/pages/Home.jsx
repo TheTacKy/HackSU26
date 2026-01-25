@@ -102,7 +102,7 @@ function Home() {
                 </div>
                 <div>
                   <h4 className="text-lg font-semibold text-white mb-1">Programming Languages</h4>
-                  <p className="text-zinc-400">Languages you're comfortable working with</p>
+                  <p className="text-zinc-400">Languages you&apos;re comfortable working with</p>
                 </div>
               </div>
 
@@ -114,7 +114,7 @@ function Home() {
                 </div>
                 <div>
                   <h4 className="text-lg font-semibold text-white mb-1">Interests</h4>
-                  <p className="text-zinc-400">Your general interests and project domains you're passionate about</p>
+                  <p className="text-zinc-400">Your general interests and project domains you&apos;re passionate about</p>
                 </div>
               </div>
 
