@@ -8,9 +8,16 @@ HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
 
 
 
-def search_repositories(query):
-    url = f"https://api.github.com/search/repositories?q={query}&sort=stars"
-    return requests.get(url, headers=HEADERS).json().get("items", [])
+def search_repositories(query, per_page=50):
+    """
+    Search GitHub repositories.
+    per_page: Number of results per page (max 100, default 30)
+    """
+    url = f"https://api.github.com/search/repositories?q={query}&sort=stars&per_page={per_page}"
+    response = requests.get(url, headers=HEADERS)
+    if response.status_code == 200:
+        return response.json().get("items", [])
+    return []
 
 
 

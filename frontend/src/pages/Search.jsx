@@ -16,7 +16,7 @@ function Search() {
       name: '',
       tech_stack: [],
       skill_level: '',
-      interests: [],
+      interests: '',  // Changed from array to string for prompt-based input
       open_source_experience: '',
       occupation: '',
       contribution_type: ''
@@ -26,10 +26,12 @@ function Search() {
   const [formData, setFormData] = useState(getInitialFormData())
 
   const [currentTechStack, setCurrentTechStack] = useState('')
-  const [currentInterest, setCurrentInterest] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [results, setResults] = useState(null)
+  const [geminiResponse, setGeminiResponse] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
 
   useEffect(() => {
     Cookies.set('formData', JSON.stringify(formData), { expires: 7 });
@@ -60,43 +62,12 @@ function Search() {
     }))
   }
 
-  const addInterest = () => {
-    if (currentInterest.trim() && !formData.interests.includes(currentInterest.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        interests: [...prev.interests, currentInterest.trim()]
-      }))
-      setCurrentInterest('')
-    }
-  }
-
-  const removeInterest = (interest) => {
-    setFormData(prev => ({
-      ...prev,
-      interests: prev.interests.filter(i => i !== interest)
-    }))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    // Validate that tech_stack and interests are not empty
-    if (formData.tech_stack.length === 0) {
-      setError('Please add at least one technology to your tech stack.')
-      return
-    }
-    
-    if (formData.interests.length === 0) {
-      setError('Please add at least one interest.')
-      return
-    }
-    
+  const fetchRepos = async (page = 1) => {
     setLoading(true)
     setError(null)
-    setResults(null)
 
     try {
-      const response = await fetch('http://localhost:8000/match', {
+      const response = await fetch(`http://localhost:8000/match?page=${page}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,7 +80,24 @@ function Search() {
       }
 
       const data = await response.json()
-      setResults(data)
+      // Handle both new format (object with recommendations) and old format (array)
+      if (data.recommendations) {
+        setResults(data.recommendations)
+        setGeminiResponse(data.gemini_response)
+        setPagination(data.pagination || null)
+        // If no results and we're not on page 1, show error
+        if (data.recommendations.length === 0 && page > 1) {
+          setError(`No repositories found for page ${page}. Please try page 1.`)
+        }
+      } else if (Array.isArray(data)) {
+        setResults(data)
+        setGeminiResponse(null)
+        setPagination(null)
+      } else {
+        setResults(data)
+        setGeminiResponse(null)
+        setPagination(null)
+      }
       console.log('Match results:', data)
     } catch (err) {
       setError(err.message || 'Failed to fetch matches. Please try again.')
@@ -119,13 +107,44 @@ function Search() {
     }
   }
 
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    
+    // Validate that tech_stack and interests are not empty
+    if (formData.tech_stack.length === 0) {
+      setError('Please add at least one technology to your tech stack.')
+      return
+    }
+    
+    if (!formData.interests.trim()) {
+      setError('Please describe your interests.')
+      return
+    }
+    
+    setCurrentPage(1)  // Reset to page 1 on new search
+    await fetchRepos(1)
+  }
+
+  const handlePageChange = async (page) => {
+    if (page < 1 || (pagination && page > pagination.total_pages)) {
+      return
+    }
+    setCurrentPage(page)
+    // Scroll to top of form/results area
+    const formElement = document.querySelector('form')
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+    await fetchRepos(page)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900">
       {/* Navigation Bar */}
       <nav className="bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-700 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center">
-            <Link to="/" className="text-2xl font-bold text-white hover:text-emerald-400 transition-colors">
+            <Link to="/" className="text-2xl font-bold text-white hover:text-sky-400 transition-colors">
               HackSU26
             </Link>
           </div>
@@ -156,7 +175,7 @@ function Search() {
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 placeholder="Enter your name"
                 required
               />
@@ -173,13 +192,13 @@ function Search() {
                   value={currentTechStack}
                   onChange={(e) => setCurrentTechStack(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTechStack())}
-                  className="flex-1 px-4 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="flex-1 px-4 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                   placeholder="e.g., React, Python, Node.js"
                 />
                 <button
                   type="button"
                   onClick={addTechStack}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors"
+                  className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg transition-colors"
                 >
                   Add
                 </button>
@@ -188,7 +207,7 @@ function Search() {
                 {formData.tech_stack.map((tech, index) => (
                   <span
                     key={index}
-                    className="inline-flex items-center px-3 py-1 bg-emerald-600 text-white rounded-full text-sm"
+                    className="inline-flex items-center px-3 py-1 bg-sky-600 text-white rounded-full text-sm"
                   >
                     {tech}
                     <button
@@ -213,7 +232,7 @@ function Search() {
                 name="skill_level"
                 value={formData.skill_level}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 required
               >
                 <option value="">Select your skill level</option>
@@ -226,43 +245,22 @@ function Search() {
 
             {/* Interests */}
             <div>
-              <label className="block text-white font-semibold mb-2">
-                Interests
+              <label htmlFor="interests" className="block text-white font-semibold mb-2">
+                Interests & Goals
               </label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={currentInterest}
-                  onChange={(e) => setCurrentInterest(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addInterest())}
-                  className="flex-1 px-4 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  placeholder="e.g., Machine Learning, Web Development, Mobile Apps"
-                />
-                <button
-                  type="button"
-                  onClick={addInterest}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors"
-                >
-                  Add
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {formData.interests.map((interest, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-3 py-1 bg-emerald-600 text-white rounded-full text-sm"
-                  >
-                    {interest}
-                    <button
-                      type="button"
-                      onClick={() => removeInterest(interest)}
-                      className="ml-2 hover:text-red-300"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+              <textarea
+                id="interests"
+                name="interests"
+                value={formData.interests}
+                onChange={handleInputChange}
+                rows={4}
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-y"
+                placeholder="Describe your interests, what kind of projects you're looking for, and what you'd like to work on. For example: 'I'm interested in machine learning projects, especially those related to natural language processing. I want to contribute to open source projects that help developers build better tools.'"
+                required
+              />
+              <p className="text-zinc-400 text-sm mt-2">
+                Tell us about the types of projects you're interested in and what you hope to contribute to.
+              </p>
             </div>
 
             {/* Open Source Experience */}
@@ -275,7 +273,7 @@ function Search() {
                 name="open_source_experience"
                 value={formData.open_source_experience}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 required
               >
                 <option value="">Select your experience</option>
@@ -297,7 +295,7 @@ function Search() {
                 name="occupation"
                 value={formData.occupation}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 placeholder="e.g., Student, Software Engineer, Data Scientist"
                 required
               />
@@ -313,7 +311,7 @@ function Search() {
                 name="contribution_type"
                 value={formData.contribution_type}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 required
               >
                 <option value="">Select contribution type</option>
@@ -330,7 +328,7 @@ function Search() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full px-6 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-lg transition-all duration-200 shadow-lg hover:shadow-emerald-500/50 transform hover:scale-[1.02] disabled:transform-none"
+                className="w-full px-6 py-4 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-lg transition-all duration-200 shadow-lg transform hover:scale-[1.02] disabled:transform-none"
               >
                 {loading ? 'Searching...' : 'Find Repositories'}
               </button>
@@ -346,16 +344,21 @@ function Search() {
           )}
 
           {/* Results Board */}
-          {results && results.length > 0 && (
+          {results && Array.isArray(results) && results.length > 0 && (
             <div className="mt-8">
               <h2 className="text-3xl font-bold text-white mb-6 text-center">
                 Recommended Repositories
               </h2>
+              {pagination && (
+                <div className="text-center text-zinc-400 mb-4">
+                  Page {pagination.current_page} of {pagination.total_pages} ({pagination.total_repos} repositories found)
+                </div>
+              )}
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {results.map((repo, index) => (
                   <div
                     key={index}
-                    className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-emerald-500/50 transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/20 flex flex-col"
+                    className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-sky-500/50 transition-all duration-200 hover:shadow-lg hover:shadow-sky-500/20 flex flex-col"
                   >
                     {/* Repository Header */}
                     <div className="mb-4">
@@ -364,7 +367,7 @@ function Search() {
                           href={repo.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xl font-bold text-emerald-400 hover:text-emerald-300 transition-colors line-clamp-1"
+                          className="text-xl font-bold text-sky-400 hover:text-sky-300 transition-colors line-clamp-1"
                         >
                           {repo.name}
                         </a>
@@ -378,7 +381,7 @@ function Search() {
                       
                       {/* Language Badge */}
                       {repo.language && (
-                        <div className="inline-flex items-center px-2 py-1 bg-emerald-600/20 text-emerald-300 rounded-md text-xs font-medium mb-2">
+                        <div className="inline-flex items-center px-2 py-1 bg-sky-600/20 text-sky-300 rounded-md text-xs font-medium mb-2">
                           {repo.language}
                         </div>
                       )}
@@ -421,7 +424,7 @@ function Search() {
                               href={issue.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="block text-xs text-emerald-400 hover:text-emerald-300 transition-colors line-clamp-1 hover:underline"
+                              className="block text-xs text-sky-400 hover:text-sky-300 transition-colors line-clamp-1 hover:underline"
                             >
                               #{issue.number} {issue.title}
                             </a>
@@ -435,20 +438,68 @@ function Search() {
                       href={repo.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-4 w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm text-center transition-colors"
+                      className="mt-4 w-full px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg text-sm text-center transition-colors"
                     >
                       View Repository
                     </a>
                   </div>
                 ))}
               </div>
+              
+              {/* Pagination Controls */}
+              {pagination && pagination.total_pages > 1 && (
+                <div className="mt-8 flex justify-center items-center gap-2">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1 || loading}
+                    className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 text-white font-semibold rounded-lg transition-colors"
+                  >
+                    Previous
+                  </button>
+                  
+                  {[1, 2, 3].filter(page => page <= pagination.total_pages).map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      disabled={loading}
+                      className={`px-4 py-2 min-w-[3rem] font-semibold rounded-lg transition-colors ${
+                        currentPage === pageNum
+                          ? 'bg-sky-600 text-white'
+                          : 'bg-zinc-700 hover:bg-zinc-600 text-white disabled:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                  
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === pagination.total_pages || loading}
+                    className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 text-white font-semibold rounded-lg transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           {/* Empty Results */}
-          {results && results.length === 0 && (
+          {results && Array.isArray(results) && results.length === 0 && (
             <div className="mt-6 p-8 bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl text-center">
               <p className="text-zinc-400 text-lg">No repositories found. Try adjusting your search criteria.</p>
+            </div>
+          )}
+
+          {/* AI Response (for testing) */}
+          {geminiResponse && (
+            <div className="mt-8 bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6">
+              <h3 className="text-xl font-bold text-white mb-4">OpenAI Ranking Output (Debug)</h3>
+              <div className="bg-zinc-900 p-4 rounded-lg">
+                <pre className="text-zinc-300 text-sm whitespace-pre-wrap break-words">
+                  {geminiResponse}
+                </pre>
+              </div>
             </div>
           )}
         </div>

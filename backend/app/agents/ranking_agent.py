@@ -1,106 +1,158 @@
-from google import genai
-from app.config import GEMINI_API_KEY
+import openai
+from app.config import OPENAI_API_KEY
+import time
+import json
+import re
 
 
 def rank_repos(repos, persona):
     """
-    Rank repositories based on the full user profile using Gemini API.
+    Rank repositories based on the full user profile using OpenAI API.
     Returns a list of repositories in ranked order.
     """
     if not repos or len(repos) == 0:
-        return []
+        return [], "No repositories to rank"
     
-    if not GEMINI_API_KEY:
-        print("Warning: GEMINI_API_KEY not found. Returning repos in original order.")
-        return repos
+    if not OPENAI_API_KEY:
+        print("Warning: OPENAI_API_KEY not found. Returning repos in original order.")
+        return repos, "OPENAI_API_KEY not found"
     
-    # Create Gemini client
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    # Create OpenAI client
+    client = openai.OpenAI(api_key=OPENAI_API_KEY)
     
-    # Build detailed persona description
-    persona_desc = f"""
-User Profile:
-- Name: {persona.get('name', 'Not provided')}
-- Occupation: {persona.get('occupation', 'Not provided')}
-- Tech Stack: {', '.join(persona.get('stack', []))}
-- Skill Level: {persona.get('level', 'Not specified')}
-- Interests: {', '.join(persona.get('interests', []))}
-- Open Source Experience: {persona.get('experience', 'Not specified')}
-- Preferred Contribution Type: {persona.get('goal', 'Not specified')}
-"""
+    # Build concise persona description (to reduce token usage)
+    user_interests = persona.get('interests', '') or 'Not specified'
+    user_tech_stack = ', '.join(persona.get('stack', []))
+    persona_desc = f"User: {persona.get('name', 'User')} | Occupation: {persona.get('occupation', 'N/A')} | Tech: {user_tech_stack} | Level: {persona.get('level', 'N/A')} | Interests: {user_interests} | Experience: {persona.get('experience', 'N/A')} | Goal: {persona.get('goal', 'N/A')}"
     
-    # Build repository list with key information
+    # Build repository list with essential information only (to reduce token usage)
     repo_list = []
     for i, repo in enumerate(repos):
-        repo_info = f"""
-{i}. {repo.get('name', 'Unknown')}
-   - Description: {repo.get('description', 'No description')[:200]}
-   - Language: {repo.get('language', 'Unknown')}
-   - Stars: {repo.get('stargazers_count', 0)}
-   - Topics: {', '.join(repo.get('topics', [])[:5])}
-   - URL: {repo.get('html_url', '')}
-"""
+        # Safely handle description (can be None) - limit to 200 chars to save tokens
+        description = repo.get('description') or 'No description'
+        if description and len(description) > 200:
+            description = description[:200] + "..."
+        
+        # Safely handle topics (can be None) - limit to top 5 topics to save tokens
+        topics = repo.get('topics') or []
+        topics_str = ', '.join(topics[:5]) if topics else 'None'
+        
+        # Get only essential metadata (removed forks, open_issues, dates to save tokens)
+        stars = repo.get('stargazers_count', 0)
+        language = repo.get('language', 'Unknown') or 'Unknown'
+        
+        # Compact format to minimize tokens
+        repo_info = f"{i}. {repo.get('name', 'Unknown')} | Lang: {language} | Stars: {stars} | Desc: {description} | Topics: {topics_str}"
         repo_list.append(repo_info)
     
     repos_text = "\n".join(repo_list)
+    num_repos = len(repos)
     
-    prompt = f"""{persona_desc}
+    # Ranking prompt - emphasizes user interests for ranking
+    prompt = f"""Rank these {num_repos} repos for: {persona_desc}
 
-Repositories to rank:
+Repos:
 {repos_text}
 
-Please rank these repositories from most to least suitable for this user. Consider:
-1. How well the repository matches their tech stack
-2. Alignment with their interests
-3. Appropriateness for their skill level
-4. Relevance to their preferred contribution type
-5. Their open source experience level
-6. Overall fit with their profile
+IMPORTANT: Rank by priority:
+1. Interest match - How well does the repo description/topics match user interests: {user_interests}
+2. Tech stack match - Does the repo use technologies from: {user_tech_stack}
+3. Skill level fit - Is it appropriate for {persona.get('level', 'N/A')} level with {persona.get('experience', 'N/A')} experience
 
-Return ONLY a comma-separated list of numbers (0-indexed) representing the ranked order, from best match to worst match.
-Example format: 3,1,5,0,2,4
-Do not include any explanation or additional text, just the numbers."""
+Return ONLY comma-separated numbers (0-indexed) from 0-{num_repos-1}, e.g., 3,1,5,0,2,4,7,8,6,9,10,11,12..."""
 
+    max_retries = 2
+    retry_count = 0
+    
     try:
-        # Use Gemini model with the new API
-        response = client.models.generate_content(
-            model='gemini-2.0-flash-exp',
-            contents=prompt,
-            config={'temperature': 0.3}
-        )
-        
-        # Extract text from response (structure may vary)
-        if hasattr(response, 'text'):
-            response_text = response.text.strip()
-        elif hasattr(response, 'candidates') and len(response.candidates) > 0:
-            response_text = response.candidates[0].content.parts[0].text.strip()
-        else:
-            response_text = str(response).strip()
-        
-        # Parse the response to get ranked indices
-        try:
-            ranked_indices = [int(x.strip()) for x in response_text.split(',')]
-            # Validate indices
-            valid_indices = [idx for idx in ranked_indices if 0 <= idx < len(repos)]
-            # Add any missing indices at the end
-            all_indices = set(range(len(repos)))
-            missing_indices = sorted(list(all_indices - set(valid_indices)))
-            ranked_indices = valid_indices + missing_indices
+        while retry_count <= max_retries:
+            try:
+                # Use OpenAI API
+                response = client.chat.completions.create(
+                    model='gpt-4o-mini',  # Using cost-effective model, can change to gpt-4o if needed
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that ranks GitHub repositories based on user interests and tech stack. Prioritize repositories that match user interests. Return only comma-separated numbers (0-indexed)."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3
+                )
+                
+                # Extract text from OpenAI response
+                response_text = response.choices[0].message.content.strip()
+                
+                # Parse the response to get ranked indices
+                try:
+                    ranked_indices = [int(x.strip()) for x in response_text.split(',')]
+                    # Validate indices
+                    valid_indices = [idx for idx in ranked_indices if 0 <= idx < len(repos)]
+                    # Add any missing indices at the end
+                    all_indices = set(range(len(repos)))
+                    missing_indices = sorted(list(all_indices - set(valid_indices)))
+                    ranked_indices = valid_indices + missing_indices
+                    
+                    # Reorder repos based on ranking
+                    ranked_repos = [repos[idx] for idx in ranked_indices if idx < len(repos)]
+                    # Return repos with the OpenAI response for debugging
+                    return ranked_repos, response_text
+                except (ValueError, IndexError):
+                    # If parsing fails, return original order
+                    print(f"Warning: Failed to parse ranking response: {response_text}")
+                    return repos, f"Error parsing response: {response_text}"
+            except openai.AuthenticationError as e:
+                # API key error
+                print(f"Warning: OpenAI API key is invalid or expired. Please update OPENAI_API_KEY in .env file. Returning repos in original order.")
+                return repos, f"OpenAI API key invalid or expired. Please update OPENAI_API_KEY in your .env file."
+            except openai.RateLimitError as e:
+                # Rate limit error - OpenAI provides retry_after in the error
+                error_msg = str(e)
+                retry_delay = None
+                
+                # Try to get retry_after from the error object
+                if hasattr(e, 'retry_after'):
+                    retry_delay = float(e.retry_after)
+                else:
+                    # Fallback: try to extract from error message
+                    retry_match = re.search(r'retry after ([\d.]+)', error_msg, re.IGNORECASE)
+                    if retry_match:
+                        retry_delay = float(retry_match.group(1))
+                
+                # If we have retries left and a retry delay, wait and retry
+                if retry_count < max_retries and retry_delay:
+                    wait_time = retry_delay + 1  # Add 1 second buffer
+                    print(f"Warning: OpenAI API rate limit exceeded. Retrying in {wait_time:.1f} seconds (attempt {retry_count + 1}/{max_retries + 1})...")
+                    time.sleep(wait_time)
+                    retry_count += 1
+                    continue
+                else:
+                    # No more retries or no retry delay info
+                    quota_info = """
+OpenAI API Rate Limits:
+- Rate limits vary by tier and model
+- Free tier: Limited requests per minute
+- Paid tier: Higher rate limits
+
+Your rate limit has been exceeded. Options:
+1. Wait and retry (automatic retry will attempt)
+2. Upgrade to a paid tier for higher limits
+3. Reduce request frequency or implement caching
+4. Check usage at: https://platform.openai.com/usage
+"""
+                    print(f"Warning: OpenAI API rate limit exceeded. Returning repos in original order.")
+                    return repos, f"OpenAI API rate limit exceeded.\n\n{quota_info}\n\nError details: {error_msg[:500]}"
+            except openai.APIError as e:
+                # General API error
+                error_msg = str(e)
+                print(f"Error in OpenAI API call: {e}")
+                return repos, f"OpenAI API error: {error_msg[:500]}"
+            except Exception as e:
+                # Other errors
+                error_msg = str(e)
+                print(f"Error in ranking: {e}")
+                return repos, f"Error: {error_msg[:500]}"
             
-            # Reorder repos based on ranking
-            ranked_repos = [repos[idx] for idx in ranked_indices if idx < len(repos)]
-            return ranked_repos
-        except (ValueError, IndexError):
-            # If parsing fails, return original order
-            print(f"Warning: Failed to parse ranking response: {response_text}")
-            return repos
-    except Exception as e:
-        print(f"Error in ranking: {e}")
-        # Return original order if ranking fails
-        return repos
+            # If we've exhausted retries, return original order
+            if retry_count > max_retries:
+                return repos, f"OpenAI API rate limit exceeded after {max_retries + 1} attempts. Returning repos in original order."
     finally:
-        # Close the client to release resources
-        try:
-            client.close()
-        except:
-            pass
+        # OpenAI client doesn't need explicit closing, but we can clean up if needed
+        pass
