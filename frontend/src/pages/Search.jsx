@@ -1,22 +1,39 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import Cookies from 'js-cookie'
 
 function Search() {
-  const [formData, setFormData] = useState({
-    name: '',
-    tech_stack: [],
-    skill_level: '',
-    interests: [],
-    open_source_experience: '',
-    occupation: '',
-    contribution_type: ''
-  })
+  const getInitialFormData = () => {
+    const saved = Cookies.get('formData');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Error parsing saved form data:', e);
+      }
+    }
+    return {
+      name: '',
+      tech_stack: [],
+      skill_level: '',
+      interests: [],
+      open_source_experience: '',
+      occupation: '',
+      contribution_type: ''
+    };
+  };
+
+  const [formData, setFormData] = useState(getInitialFormData())
 
   const [currentTechStack, setCurrentTechStack] = useState('')
   const [currentInterest, setCurrentInterest] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [results, setResults] = useState(null)
+
+  useEffect(() => {
+    Cookies.set('formData', JSON.stringify(formData), { expires: 7 });
+  }, [formData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
