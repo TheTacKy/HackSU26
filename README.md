@@ -1,4 +1,14 @@
-# HackSU26
+# Repo Scout
+
+A web app that matches developers with open source GitHub repositories based on their interests, coding language, and experience level. Repo Scout uses OpenAI to extract keywords from user interests, searches GitHub for relevant repositories, and intelligently ranks them to help developers find the perfect projects to contribute to.
+
+## Features
+
+- **AI-Powered Keyword Extraction**: Uses OpenAI to extract relevant keywords from natural language descriptions
+- **Smart Repository Matching**: Searches GitHub repositories based on coding languages, interests, and activity level
+- **Intelligent Ranking**: AI-powered ranking system that considers user profile, interests, and skill level
+- **Issue Discovery**: Automatically fetches "good first issue" and "help wanted" labels for each repository
+- **Modern UI**: Beautiful, responsive interface built with React and Tailwind CSS
 
 ## Setup
 

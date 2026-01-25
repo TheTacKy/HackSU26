@@ -7,7 +7,7 @@ function Home() {
       <nav className="bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-700 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white">HackSU26</h1>
+            <h1 className="text-2xl font-bold text-white">Repo Scout</h1>
           </div>
         </div>
       </nav>

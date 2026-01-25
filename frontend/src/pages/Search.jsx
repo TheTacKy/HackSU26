@@ -243,7 +243,7 @@ function Search() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center">
             <Link to="/" className="text-2xl font-bold text-white hover:text-sky-400 transition-colors">
-              HackSU26
+              Repo Scout
             </Link>
           </div>
         </div>
@@ -336,7 +336,7 @@ function Search() {
                 required
               />
               <p className="text-zinc-400 text-sm mt-2">
-                Tell us about the types of projects you're interested in and what you hope to contribute to.
+                Tell us about the types of projects you&apos;re interested in and what you hope to contribute to.
               </p>
             </div>
 
