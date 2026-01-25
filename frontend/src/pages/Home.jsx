@@ -13,7 +13,7 @@ function Home() {
       </nav>
 
       {/* Hero Section */}
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-4 pt-28 pb-20">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
             Discover Your Perfect
@@ -32,7 +32,7 @@ function Home() {
         </div>
 
         {/* Features Section */}
-        <div className="max-w-6xl mx-auto mt-24">
+        <div className="max-w-6xl mx-auto mt-12">
           <h2 className="text-3xl font-bold text-white text-center mb-12">
             How It Works
           </h2>

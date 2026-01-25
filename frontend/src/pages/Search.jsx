@@ -29,7 +29,6 @@ function Search() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [results, setResults] = useState(null)
-  const [geminiResponse, setGeminiResponse] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState(null)
   // Cache all recommendations to avoid re-fetching on page changes
@@ -161,9 +160,6 @@ function Search() {
           current_page: page
         })
       }
-
-      // Set gemini response from page 1
-      setGeminiResponse(page1Data.gemini_response || null)
 
       // Paginate the cached results for the requested page
       const reposPerPage = 12
@@ -332,7 +328,7 @@ function Search() {
                 onChange={handleInputChange}
                 rows={4}
                 className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-y"
-                placeholder="Describe your interests, what kind of projects you're looking for, and what you'd like to work on. For example: 'I'm interested in machine learning projects, especially those related to natural language processing. I want to contribute to open source projects that help developers build better tools.'"
+                placeholder="Describe your interests"
                 required
               />
               <p className="text-zinc-400 text-sm mt-2">
@@ -415,17 +411,6 @@ function Search() {
             </>
           )}
 
-          {/* AI Response (for testing) */}
-          {geminiResponse && (
-            <div className="mt-8 bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6">
-              <h3 className="text-xl font-bold text-white mb-4">OpenAI Ranking Output (Debug)</h3>
-              <div className="bg-zinc-900 p-4 rounded-lg">
-                <pre className="text-zinc-300 text-sm whitespace-pre-wrap break-words">
-                  {geminiResponse}
-                </pre>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
