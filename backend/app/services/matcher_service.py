@@ -11,6 +11,10 @@ import time
 
 
 def run_matcher(profile, page=1):
+    return run_matcher_with_options(profile, page=page, include_issues=True)
+
+
+def run_matcher_with_options(profile, page=1, include_issues=True):
     persona = build_persona(profile)
     
     # API Call 1: Extract keywords from interests using OpenAI
@@ -65,26 +69,25 @@ def run_matcher(profile, page=1):
     if page == 1:
         repos_to_process = ranked_repos[:50]
         issues_map = {}
-        
-        # Fetch issues in parallel
-        print(f"\n[ISSUES] Fetching issues for {len(repos_to_process)} repos in parallel...")
-        start_time_issues = time.time()
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_repo = {
-                executor.submit(fetch_issues, repo, persona["experience"]): repo["full_name"]
-                for repo in repos_to_process
-            }
+        if include_issues:
+            print(f"\n[ISSUES] Fetching issues for {len(repos_to_process)} repos in parallel...")
+            start_time_issues = time.time()
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                future_to_repo = {
+                    executor.submit(fetch_issues, repo, persona["experience"]): repo["full_name"]
+                    for repo in repos_to_process
+                }
+                
+                for future in as_completed(future_to_repo):
+                    repo_name = future_to_repo[future]
+                    try:
+                        issues_map[repo_name] = future.result()
+                    except Exception as e:
+                        issues_map[repo_name] = []
             
-            for future in as_completed(future_to_repo):
-                repo_name = future_to_repo[future]
-                try:
-                    issues_map[repo_name] = future.result()
-                except Exception as e:
-                    issues_map[repo_name] = []
-        
-        elapsed_issues = time.time() - start_time_issues
-        print(f"[ISSUES] Fetched issues for {len(repos_to_process)} repos (took {elapsed_issues:.2f}s)")
-        
+            elapsed_issues = time.time() - start_time_issues
+            print(f"[ISSUES] Fetched issues for {len(repos_to_process)} repos (took {elapsed_issues:.2f}s)")
+
         recommendations = generate_recommendations(repos_to_process, issues_map)
         total_repos = len(repos_to_process)
         total_pages = min(4, (total_repos + repos_per_page - 1) // repos_per_page)

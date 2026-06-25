@@ -1,4 +1,5 @@
 from app.github_client import search_repositories
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 import re
 
@@ -46,12 +47,32 @@ def find_repos(persona):
     # Strategy: Make 1-2 queries per language instead of 2 queries per keyword
     # This reduces from 10+ calls to 3-4 calls while maintaining quality
     
-    # Query 1: Combined keywords without language filter (broader search)
     base_filters = f"is:public+archived:false+has:issues+pushed:>{six_months_ago}"
-    query_general = f"({combined_keywords})+{base_filters}"
-    repos_general = search_repositories(query_general, per_page=100)
-    total_queries += 1
-    total_repos_from_api += len(repos_general)
+    query_specs = [("general", f"({combined_keywords})+{base_filters}", None)]
+    query_specs.extend(
+        ("language", f"({combined_keywords})+language:{language}+{base_filters}", language)
+        for language in dict.fromkeys(tech_stack)
+    )
+
+    repos_general = []
+    language_results = []
+
+    with ThreadPoolExecutor(max_workers=min(4, len(query_specs))) as executor:
+        future_to_spec = {
+            executor.submit(search_repositories, query, 100): (query_type, language)
+            for query_type, query, language in query_specs
+        }
+
+        for future in as_completed(future_to_spec):
+            query_type, language = future_to_spec[future]
+            repos_result = future.result()
+            total_queries += 1
+            total_repos_from_api += len(repos_result)
+
+            if query_type == "general":
+                repos_general = repos_result
+            else:
+                language_results.append((language, repos_result))
     
     # If combined OR query returns 0 results, try individual keyword queries as fallback
     if len(repos_general) == 0 and len(top_keywords) > 1:
@@ -112,13 +133,8 @@ def find_repos(persona):
             if repo_language in tech_stack_lower:
                 repo_scores[repo_id] += 2
     
-    # Query 2-N: Combined keywords WITH language filter for each tech stack language
-    for language in tech_stack:
-        query_with_lang = f"({combined_keywords})+language:{language}+{base_filters}"
-        repos_lang = search_repositories(query_with_lang, per_page=100)
-        total_queries += 1
-        total_repos_from_api += len(repos_lang)
-        
+    # Process language-specific searches
+    for language, repos_lang in language_results:
         for repo in repos_lang:
             repo_id = repo["id"]
             # Verify repo is open source and not archived

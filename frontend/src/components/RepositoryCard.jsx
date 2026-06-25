@@ -1,16 +1,49 @@
 import PropTypes from 'prop-types'
 
-function RepositoryCard({ repo }) {
+function RepositoryCard({ repo, issuesLoading = false, isSkeleton = false }) {
+  if (isSkeleton) {
+    return (
+      <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-7 flex flex-col min-h-[26rem]">
+        <div className="mb-4">
+          <div className="flex items-start justify-between mb-3 gap-3">
+            <div className="skeleton h-6 w-40 rounded" />
+            <div className="skeleton h-5 w-14 rounded" />
+          </div>
+          <div className="skeleton h-6 w-20 rounded-md mb-3" />
+        </div>
+        <div className="space-y-2 mb-4">
+          <div className="skeleton h-4 w-full rounded" />
+          <div className="skeleton h-4 w-11/12 rounded" />
+          <div className="skeleton h-4 w-3/4 rounded" />
+        </div>
+        <div className="flex gap-2 mb-4">
+          <div className="skeleton h-6 w-16 rounded" />
+          <div className="skeleton h-6 w-20 rounded" />
+          <div className="skeleton h-6 w-12 rounded" />
+        </div>
+        <div className="mt-auto pt-4 border-t border-zinc-700">
+          <div className="skeleton h-4 w-32 rounded mb-3" />
+          <div className="space-y-2 bg-zinc-900/50 rounded-lg p-2">
+            <div className="skeleton h-3 w-full rounded" />
+            <div className="skeleton h-3 w-5/6 rounded" />
+            <div className="skeleton h-3 w-4/6 rounded" />
+          </div>
+        </div>
+        <div className="skeleton h-10 w-full rounded-lg mt-4" />
+      </div>
+    )
+  }
+
   return (
-    <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-6 hover:border-sky-500/50 transition-all duration-200 flex flex-col">
+    <div className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-7 hover:border-sky-500/50 transition-all duration-200 flex flex-col min-h-[26rem]">
       {/* Repository Header */}
       <div className="mb-4">
-        <div className="flex items-start justify-between mb-2">
+        <div className="flex items-start justify-between gap-4 mb-3">
           <a
             href={repo.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xl font-bold text-sky-400 hover:text-sky-300 transition-colors line-clamp-1"
+            className="text-2xl font-bold text-sky-400 hover:text-sky-300 transition-colors leading-tight break-words pr-2 flex-1"
           >
             {repo.name}
           </a>
@@ -31,7 +64,7 @@ function RepositoryCard({ repo }) {
       </div>
 
       {/* Description */}
-      <p className="text-zinc-300 text-sm mb-4 line-clamp-3 flex-grow">
+      <p className="text-zinc-300 text-base mb-5 line-clamp-4 flex-grow leading-relaxed">
         {repo.description || "No description available"}
       </p>
 
@@ -55,24 +88,38 @@ function RepositoryCard({ repo }) {
       )}
 
       {/* Issues Section */}
-      {repo.issues && repo.issues.length > 0 && (
+      {(issuesLoading || repo.issuesLoaded) && (
         <div className="mt-auto pt-4 border-t border-zinc-700">
-          <h4 className="text-sm font-semibold text-white mb-2">
-            Good First Issues ({repo.issues_count})
+          <h4 className="text-base font-semibold text-white mb-3">
+            {issuesLoading ? 'Good First Issues' : `Good First Issues (${repo.issues_count})`}
           </h4>
-          <div className="space-y-2 max-h-32 overflow-y-auto bg-zinc-900/50 rounded-lg p-2 scrollbar-hide">
-            {repo.issues.map((issue, issueIndex) => (
-              <a
-                key={issueIndex}
-                href={issue.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-xs text-sky-400 hover:text-sky-300 transition-colors line-clamp-1 hover:underline"
-              >
-                #{issue.number} {issue.title}
-              </a>
-            ))}
-          </div>
+          {issuesLoading ? (
+            <div className="space-y-2 max-h-32 overflow-y-auto bg-zinc-900/50 rounded-lg p-2 scrollbar-hide">
+              <div className="skeleton h-3 w-full rounded" />
+              <div className="skeleton h-3 w-5/6 rounded" />
+              <div className="skeleton h-3 w-4/6 rounded" />
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-32 overflow-y-auto bg-zinc-900/50 rounded-lg p-2 scrollbar-hide">
+              {repo.issues.length > 0 ? (
+                repo.issues.map((issue, issueIndex) => (
+                  <a
+                    key={issueIndex}
+                    href={issue.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-sm text-sky-400 hover:text-sky-300 transition-colors line-clamp-2 hover:underline"
+                  >
+                    #{issue.number} {issue.title}
+                  </a>
+                ))
+              ) : (
+                <p className="text-sm text-zinc-400">
+                  No matching good first issues found right now.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -81,7 +128,7 @@ function RepositoryCard({ repo }) {
         href={repo.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-4 w-full px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg text-sm text-center transition-colors"
+        className="mt-5 w-full px-4 py-3 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg text-base text-center transition-colors"
       >
         View Repository
       </a>
@@ -103,7 +150,10 @@ RepositoryCard.propTypes = {
       number: PropTypes.number,
     })),
     issues_count: PropTypes.number,
+    issuesLoaded: PropTypes.bool,
   }).isRequired,
+  issuesLoading: PropTypes.bool,
+  isSkeleton: PropTypes.bool,
 }
 
 export default RepositoryCard

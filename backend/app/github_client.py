@@ -13,6 +13,26 @@ else:
     print(f"[GITHUB_API] WARNING: No GITHUB_TOKEN found. Using unauthenticated requests (60 req/hour limit)")
 
 
+def _timed_get(url, *, headers=None, timeout=None, label="request"):
+    start_time = time.time()
+    try:
+        response = requests.get(url, headers=headers, timeout=timeout)
+        elapsed = time.time() - start_time
+        print(
+            f"[GITHUB_API] {label} -> status={response.status_code} "
+            f"time={elapsed:.2f}s"
+        )
+        return response
+    except requests.Timeout:
+        elapsed = time.time() - start_time
+        print(f"[GITHUB_API] {label} -> timeout after {elapsed:.2f}s")
+        raise
+    except Exception as exc:
+        elapsed = time.time() - start_time
+        print(f"[GITHUB_API] {label} -> failed after {elapsed:.2f}s: {exc}")
+        raise
+
+
 
 
 def search_repositories(query, per_page=50, max_retries=3):
@@ -24,7 +44,11 @@ def search_repositories(query, per_page=50, max_retries=3):
     url = f"https://api.github.com/search/repositories?q={query}&sort=stars&per_page={per_page}"
     
     for attempt in range(max_retries):
-        response = requests.get(url, headers=HEADERS)
+        response = _timed_get(
+            url,
+            headers=HEADERS,
+            label=f"search_repositories attempt={attempt + 1}/{max_retries}"
+        )
         
         if response.status_code == 200:
             data = response.json()
@@ -69,7 +93,12 @@ def get_issues(owner, repo, label, timeout=5):
     """
     url = f"https://api.github.com/repos/{owner}/{repo}/issues?labels={label}&state=open&per_page=10"
     try:
-        response = requests.get(url, headers=HEADERS, timeout=timeout)
+        response = _timed_get(
+            url,
+            headers=HEADERS,
+            timeout=timeout,
+            label=f"get_issues repo={owner}/{repo} label='{label}'"
+        )
         if response.status_code == 200:
             issues = response.json()
             # Filter out pull requests (GitHub API returns both issues and PRs)
@@ -86,9 +115,14 @@ def get_issues(owner, repo, label, timeout=5):
 
 def get_all_open_issues(owner, repo, timeout=5):
     """Fetch all open issues without label filter. Added timeout to prevent hanging."""
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues?state=open&per_page=10"
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues?state=open&per_page=20&sort=updated&direction=desc"
     try:
-        response = requests.get(url, headers=HEADERS, timeout=timeout)
+        response = _timed_get(
+            url,
+            headers=HEADERS,
+            timeout=timeout,
+            label=f"get_all_open_issues repo={owner}/{repo}"
+        )
         if response.status_code == 200:
             issues = response.json()
             # Filter out pull requests (GitHub API returns both issues and PRs)
@@ -106,7 +140,7 @@ def get_all_open_issues(owner, repo, timeout=5):
 
 def get_readme(owner, repo):
     url = f"https://api.github.com/repos/{owner}/{repo}/readme"
-    response = requests.get(url, headers=HEADERS)
+    response = _timed_get(url, headers=HEADERS, label=f"get_readme repo={owner}/{repo}")
     if response.status_code == 200:
         data = response.json()
         content = base64.b64decode(data['content']).decode('utf-8')
@@ -118,7 +152,11 @@ def get_readme(owner, repo):
 
 def get_code_breakdown(owner, repo, path=""):
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
-    response = requests.get(url, headers=HEADERS)
+    response = _timed_get(
+        url,
+        headers=HEADERS,
+        label=f"get_code_breakdown repo={owner}/{repo} path='{path or '/'}'"
+    )
     if response.status_code == 200:
         return response.json()
     return None

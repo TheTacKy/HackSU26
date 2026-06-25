@@ -15,6 +15,9 @@ function Home() {
       {/* Hero Section */}
       <div className="container mx-auto px-4 pt-28 pb-20">
         <div className="max-w-4xl mx-auto text-center">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300 mb-4">
+            Hello, world!
+          </p>
           <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
             Discover Your Perfect
             <span className="text-sky-400"> Open Source</span> Project

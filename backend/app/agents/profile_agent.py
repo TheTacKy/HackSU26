@@ -1,6 +1,6 @@
 def build_persona(profile):
     return {
-    "name": profile.name,
+    "name": "User",
     "stack": profile.tech_stack,
     "level": profile.skill_level,
     "interests": profile.interests,

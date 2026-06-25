@@ -15,7 +15,6 @@ function Search() {
       }
     }
     return {
-      name: '',
       tech_stack: [],
       interests: '',  // Changed from array to string for prompt-based input
       skill_level: '',
@@ -31,6 +30,8 @@ function Search() {
   const [results, setResults] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState(null)
+  const [loadingIssues, setLoadingIssues] = useState(false)
+  const [pendingIssueRepos, setPendingIssueRepos] = useState({})
   // Cache all recommendations to avoid re-fetching on page changes
   const [cachedAllRecommendations, setCachedAllRecommendations] = useState(null)
   const [cachedPagination, setCachedPagination] = useState(null)
@@ -64,6 +65,80 @@ function Search() {
     }))
   }
 
+  const mergeIssuesIntoRecommendations = (recommendations, issuesByRepo) => (
+    recommendations.map((repo) => {
+      const issues = issuesByRepo[repo.full_name]
+      if (!issues) {
+        return repo
+      }
+
+      return {
+        ...repo,
+        issues,
+        issues_count: issues.length,
+        issuesLoaded: true,
+      }
+    })
+  )
+
+  const fetchIssuesForRepos = async (repositoriesForIssues, sourceRecommendations = null) => {
+    const missingRepos = repositoriesForIssues.filter(
+      (repo) => repo?.full_name && !repo.issuesLoaded
+    )
+
+    if (missingRepos.length === 0) {
+      return
+    }
+
+    const pendingMap = Object.fromEntries(
+      missingRepos.map((repo) => [repo.full_name, true])
+    )
+
+    setLoadingIssues(true)
+    setPendingIssueRepos((prev) => ({ ...prev, ...pendingMap }))
+
+    try {
+      const response = await fetch('http://localhost:8000/issues/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repositories: missingRepos.map((repo) => repo.full_name),
+          experience: formData.open_source_experience,
+        }),
+      })
+
+      const data = response.ok ? await response.json() : null
+      const issuesByRepo = data?.issues ?? {}
+
+      setCachedAllRecommendations((prev) => {
+        const base = sourceRecommendations ?? prev ?? []
+        const next = mergeIssuesIntoRecommendations(base, issuesByRepo)
+
+        if (sourceRecommendations) {
+          const reposPerPage = 12
+          const startIdx = (currentPage - 1) * reposPerPage
+          const endIdx = startIdx + reposPerPage
+          setResults(next.slice(startIdx, endIdx))
+        }
+
+        return next
+      })
+
+      setResults((prev) => mergeIssuesIntoRecommendations(prev ?? [], issuesByRepo))
+    } catch (issuesError) {
+      console.error('Error fetching issues:', issuesError)
+    } finally {
+      setPendingIssueRepos((prev) => {
+        const next = { ...prev }
+        missingRepos.forEach((repo) => {
+          delete next[repo.full_name]
+        })
+        return next
+      })
+      setLoadingIssues(false)
+    }
+  }
+
   const fetchRepos = async (page = 1, useCache = false) => {
     // If we have cached data and we're just changing pages, use cache
     if (useCache && cachedAllRecommendations && cachedAllRecommendations.length > 0) {
@@ -81,6 +156,7 @@ function Search() {
         })
       }
       setError(null)
+      await fetchIssuesForRepos(paginatedResults)
       return
     }
 
@@ -88,10 +164,9 @@ function Search() {
     setError(null)
 
     try {
-      // Fetch pages sequentially to avoid GitHub API rate limits
-      // Start with page 1, then fetch 2 and 3 if needed
+      // Fetch once and paginate locally to avoid redundant backend calls.
       console.log('Fetching page 1...')
-      const page1Response = await fetch(`http://localhost:8000/match?page=1`, {
+      const page1Response = await fetch(`http://localhost:8000/match?page=1&include_issues=false`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -102,45 +177,14 @@ function Search() {
         throw new Error('Failed to fetch repositories. Please try again.')
       }
       
-      // Only fetch pages 2 and 3 if page 1 was successful and we have pagination info
-      let page2Data = null
-      let page3Data = null
-      
-      if (page1Data.pagination && page1Data.pagination.total_pages > 1) {
-        console.log('Fetching page 2...')
-        const page2Response = await fetch(`http://localhost:8000/match?page=2`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
-        })
-        page2Data = page2Response.ok ? await page2Response.json() : null
-        
-        if (page1Data.pagination.total_pages > 2) {
-          console.log('Fetching page 3...')
-          const page3Response = await fetch(`http://localhost:8000/match?page=3`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData),
-          })
-          page3Data = page3Response.ok ? await page3Response.json() : null
-        }
-      }
-
-      if (!page1Data || !page1Data.recommendations) {
-        throw new Error('Failed to fetch repositories. Please try again.')
-      }
-
-      // Combine all recommendations from all pages
-      const allRecommendations = []
-      if (page1Data.recommendations && Array.isArray(page1Data.recommendations)) {
-        allRecommendations.push(...page1Data.recommendations)
-      }
-      if (page2Data?.recommendations && Array.isArray(page2Data.recommendations)) {
-        allRecommendations.push(...page2Data.recommendations)
-      }
-      if (page3Data?.recommendations && Array.isArray(page3Data.recommendations)) {
-        allRecommendations.push(...page3Data.recommendations)
-      }
+      const allRecommendations = Array.isArray(page1Data.recommendations)
+        ? page1Data.recommendations.map((repo) => ({
+            ...repo,
+            issues: Array.isArray(repo.issues) ? repo.issues : [],
+            issues_count: repo.issues_count ?? 0,
+            issuesLoaded: false,
+          }))
+        : []
 
       // Cache all recommendations
       setCachedAllRecommendations(allRecommendations)
@@ -148,7 +192,7 @@ function Search() {
       // Use page 1 pagination info as base, but update with actual total
       if (page1Data.pagination) {
         const totalRepos = allRecommendations.length
-        const totalPages = Math.min(3, Math.ceil(totalRepos / 12))
+        const totalPages = Math.max(1, Math.ceil(totalRepos / 12))
         const paginationInfo = {
           ...page1Data.pagination,
           total_repos: totalRepos,
@@ -181,6 +225,7 @@ function Search() {
       }
 
       console.log(`Fetched and cached ${allRecommendations.length} total recommendations, showing page ${page}`)
+      await fetchIssuesForRepos(paginatedResults, allRecommendations)
     } catch (err) {
       setError(err.message || 'Failed to fetch matches. Please try again.')
       console.error('Error submitting form:', err)
@@ -206,6 +251,7 @@ function Search() {
     // Clear cache on new search
     setCachedAllRecommendations(null)
     setCachedPagination(null)
+    setPendingIssueRepos({})
     setCurrentPage(1)  // Reset to page 1 on new search
     await fetchRepos(1, false)  // Don't use cache, fetch fresh data
   }
@@ -246,7 +292,7 @@ function Search() {
       </nav>
 
       {/* Form Section */}
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-12 max-w-7xl">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-4">
@@ -258,23 +304,6 @@ function Search() {
           </div>
 
           <form onSubmit={handleSubmit} className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-8 space-y-6">
-            {/* Name */}
-            <div>
-              <label htmlFor="name" className="block text-white font-semibold mb-2">
-                Name
-              </label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                placeholder="Enter your name"
-                required
-              />
-            </div>
-
             {/* Coding Languages */}
             <div>
               <label className="block text-white font-semibold mb-2">
@@ -308,8 +337,9 @@ function Search() {
                       type="button"
                       onClick={() => removeTechStack(tech)}
                       className="ml-2 hover:text-red-300"
+                      aria-label={`Remove ${tech}`}
                     >
-                      ×
+                      x
                     </button>
                   </span>
                 ))}
@@ -390,28 +420,34 @@ function Search() {
             </div>
           </form>
 
-          {/* Error Message */}
-          {error && (
-            <div className="mt-6 p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-200">
-              <p className="font-semibold">Error:</p>
-              <p>{error}</p>
-            </div>
-          )}
-
-          {/* Results Board */}
-          {results && (
-            <>
-              <RepositoryList repositories={results} pagination={pagination} />
-              <Pagination
-                pagination={pagination}
-                currentPage={currentPage}
-                onPageChange={handlePageChange}
-                loading={loading}
-              />
-            </>
-          )}
-
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="max-w-3xl mx-auto mt-6 p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-200">
+            <p className="font-semibold">Error:</p>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {/* Results Board */}
+        {(loading || results) && (
+          <div className="mt-12">
+            <RepositoryList
+              repositories={results}
+              pagination={pagination}
+              loading={loading && !results}
+              loadingIssues={loadingIssues}
+              pendingIssueRepos={pendingIssueRepos}
+            />
+            <Pagination
+              pagination={pagination}
+              currentPage={currentPage}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

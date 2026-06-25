@@ -1,4 +1,25 @@
-from app.github_client import get_issues, get_all_open_issues
+from app.github_client import get_all_open_issues
+import time
+
+
+def _has_label(issue, target_label):
+    labels = issue.get("labels", []) if isinstance(issue, dict) else []
+    normalized_target = target_label.lower()
+    return any(
+        (label.get("name", "") or "").lower() == normalized_target
+        for label in labels
+        if isinstance(label, dict)
+    )
+
+
+def _prioritize_issues(issues, preferred_label, fallback_label):
+    preferred = [issue for issue in issues if _has_label(issue, preferred_label)]
+    fallback = [issue for issue in issues if _has_label(issue, fallback_label)]
+    unlabeled = [
+        issue for issue in issues
+        if not _has_label(issue, preferred_label) and not _has_label(issue, fallback_label)
+    ]
+    return preferred + fallback + unlabeled
 
 
 
@@ -6,21 +27,23 @@ from app.github_client import get_issues, get_all_open_issues
 def fetch_issues(repo, experience):
     owner = repo["owner"]["login"]
     name = repo["name"]
+    start_time = time.time()
 
-    # Try to fetch issues with preferred label first
-    # Check for various "none" representations (case-insensitive)
-    label = "good first issue" if experience and experience.lower() in ["none", "none - first time contributor"] else "help wanted"
-    issues = get_issues(owner, name, label)
-    
-    # If no issues found with preferred label, try alternative labels
-    if not issues or len(issues) == 0:
-        # Try the other label
-        alternative_label = "help wanted" if label == "good first issue" else "good first issue"
-        issues = get_issues(owner, name, alternative_label)
-    
-    # If still no issues, try fetching all open issues (without label filter)
-    if not issues or len(issues) == 0:
-        issues = get_all_open_issues(owner, name)
-    
+    preferred_label = (
+        "good first issue"
+        if experience and experience.lower() in ["none", "none - first time contributor"]
+        else "help wanted"
+    )
+    fallback_label = "help wanted" if preferred_label == "good first issue" else "good first issue"
+
+    issues = get_all_open_issues(owner, name)
+    prioritized_issues = _prioritize_issues(issues, preferred_label, fallback_label)
+
     # Ensure we return a list and limit to 5
-    return issues[:5] if isinstance(issues, list) else []
+    final_issues = prioritized_issues[:5] if isinstance(prioritized_issues, list) else []
+    elapsed = time.time() - start_time
+    print(
+        f"[ISSUES] repo={owner}/{name} total_time={elapsed:.2f}s "
+        f"returned={len(final_issues)}"
+    )
+    return final_issues

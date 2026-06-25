@@ -1,20 +1,23 @@
+def serialize_issues(issues):
+    issues_list = []
+    for issue in issues[:5]:
+        if isinstance(issue, dict):
+            issues_list.append({
+                "title": issue.get("title", "No title"),
+                "url": issue.get("html_url", ""),
+                "number": issue.get("number", 0),
+                "state": issue.get("state", "open")
+            })
+    return issues_list
+
+
 def generate_recommendations(repos, issues_map):
     recommendations = []
 
     for repo in repos:
         repo_key = repo["full_name"]
         issues = issues_map.get(repo_key, [])
-        
-        # Extract relevant issue information
-        issues_list = []
-        for issue in issues[:5]:  # Limit to 5 issues
-            if isinstance(issue, dict):
-                issues_list.append({
-                    "title": issue.get("title", "No title"),
-                    "url": issue.get("html_url", ""),
-                    "number": issue.get("number", 0),
-                    "state": issue.get("state", "open")
-                })
+        issues_list = serialize_issues(issues)
         
         recommendations.append({
             "name": repo["name"],

@@ -1,6 +1,7 @@
 import openai
 from app.config import OPENAI_API_KEY
 import re
+import time
 
 
 def extract_keywords(interests_prompt):
@@ -10,6 +11,14 @@ def extract_keywords(interests_prompt):
     """
     if not interests_prompt or not interests_prompt.strip():
         return ["open source"]
+
+    word_count = len(interests_prompt.split())
+    if word_count <= 4:
+        print(
+            f"[KEYWORD_EXTRACTION] Short prompt detected ({word_count} words), "
+            "using fallback extraction"
+        )
+        return _fallback_keyword_extraction(interests_prompt)
     
     if not OPENAI_API_KEY:
         return _fallback_keyword_extraction(interests_prompt)
@@ -31,6 +40,7 @@ Example format: rpg, video games, game development, gaming, open source games, g
 Keep keywords concise (1-3 words max per keyword)."""
 
     try:
+        start_time = time.time()
         response = client.chat.completions.create(
             model='gpt-4o-mini',
             messages=[
@@ -40,6 +50,8 @@ Keep keywords concise (1-3 words max per keyword)."""
             temperature=0.3,
             max_tokens=100
         )
+        elapsed = time.time() - start_time
+        print(f"[OPENAI_API] keyword_extraction model=gpt-4o-mini time={elapsed:.2f}s")
         
         response_text = response.choices[0].message.content.strip()
         
@@ -64,6 +76,8 @@ Keep keywords concise (1-3 words max per keyword)."""
         return keywords
         
     except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"[OPENAI_API] keyword_extraction failed after {elapsed:.2f}s: {e}")
         return _fallback_keyword_extraction(interests_prompt)
 
 

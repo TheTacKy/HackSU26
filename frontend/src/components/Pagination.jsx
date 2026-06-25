@@ -5,6 +5,11 @@ function Pagination({ pagination, currentPage, onPageChange, loading }) {
     return null
   }
 
+  const pageNumbers = Array.from(
+    { length: pagination.total_pages },
+    (_, index) => index + 1
+  )
+
   return (
     <div className="mt-8 flex justify-center items-center gap-2">
       <button
@@ -15,7 +20,7 @@ function Pagination({ pagination, currentPage, onPageChange, loading }) {
         Previous
       </button>
       
-      {[1, 2, 3].filter(page => page <= pagination.total_pages).map((pageNum) => (
+      {pageNumbers.map((pageNum) => (
         <button
           key={pageNum}
           onClick={() => onPageChange(pageNum)}

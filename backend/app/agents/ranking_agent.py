@@ -71,6 +71,7 @@ Do NOT include any text, explanations, or other content. Only numbers separated 
         while retry_count <= max_retries:
             try:
                 # Use OpenAI API
+                start_time = time.time()
                 response = client.chat.completions.create(
                     model='gpt-4o-mini',  # Using cost-effective model, can change to gpt-4o if needed
                     messages=[
@@ -78,6 +79,11 @@ Do NOT include any text, explanations, or other content. Only numbers separated 
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.3
+                )
+                elapsed = time.time() - start_time
+                print(
+                    f"[OPENAI_API] repo_ranking model=gpt-4o-mini "
+                    f"attempt={retry_count + 1}/{max_retries + 1} time={elapsed:.2f}s"
                 )
                 
                 # Extract text from OpenAI response
@@ -124,10 +130,17 @@ Do NOT include any text, explanations, or other content. Only numbers separated 
                     return repos, f"Error parsing response: {response_text[:200]}"
             except openai.AuthenticationError as e:
                 # API key error
+                elapsed = time.time() - start_time
+                print(f"[OPENAI_API] repo_ranking auth_failed after {elapsed:.2f}s")
                 print(f"Warning: OpenAI API key is invalid or expired. Please update OPENAI_API_KEY in .env file. Returning repos in original order.")
                 return repos, f"OpenAI API key invalid or expired. Please update OPENAI_API_KEY in your .env file."
             except openai.RateLimitError as e:
                 # Rate limit error - OpenAI provides retry_after in the error
+                elapsed = time.time() - start_time
+                print(
+                    f"[OPENAI_API] repo_ranking rate_limited "
+                    f"attempt={retry_count + 1}/{max_retries + 1} after {elapsed:.2f}s"
+                )
                 error_msg = str(e)
                 retry_delay = None
                 
@@ -165,12 +178,16 @@ Your rate limit has been exceeded. Options:
                     return repos, f"OpenAI API rate limit exceeded.\n\n{quota_info}\n\nError details: {error_msg[:500]}"
             except openai.APIError as e:
                 # General API error
+                elapsed = time.time() - start_time
                 error_msg = str(e)
+                print(f"[OPENAI_API] repo_ranking api_error after {elapsed:.2f}s")
                 print(f"Error in OpenAI API call: {e}")
                 return repos, f"OpenAI API error: {error_msg[:500]}"
             except Exception as e:
                 # Other errors
+                elapsed = time.time() - start_time
                 error_msg = str(e)
+                print(f"[OPENAI_API] repo_ranking failed after {elapsed:.2f}s")
                 print(f"Error in ranking: {e}")
                 return repos, f"Error: {error_msg[:500]}"
             
