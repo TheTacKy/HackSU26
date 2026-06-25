@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import Cookies from 'js-cookie'
 import RepositoryList from '../components/RepositoryList'
 import Pagination from '../components/Pagination'
+import LanguageAutocomplete from '../components/LanguageAutocomplete'
 
 function Search() {
   const getInitialFormData = () => {
@@ -24,7 +25,6 @@ function Search() {
 
   const [formData, setFormData] = useState(getInitialFormData())
 
-  const [currentTechStack, setCurrentTechStack] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [results, setResults] = useState(null)
@@ -32,6 +32,7 @@ function Search() {
   const [pagination, setPagination] = useState(null)
   const [loadingIssues, setLoadingIssues] = useState(false)
   const [pendingIssueRepos, setPendingIssueRepos] = useState({})
+  const [shouldScrollToResults, setShouldScrollToResults] = useState(false)
   // Cache all recommendations to avoid re-fetching on page changes
   const [cachedAllRecommendations, setCachedAllRecommendations] = useState(null)
   const [cachedPagination, setCachedPagination] = useState(null)
@@ -39,6 +40,25 @@ function Search() {
   useEffect(() => {
     Cookies.set('formData', JSON.stringify(formData), { expires: 7 });
   }, [formData]);
+
+  useEffect(() => {
+    if (!shouldScrollToResults || (!loading && !results)) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      const resultsSection = document.getElementById('recommended-repositories')
+      if (resultsSection) {
+        const elementPosition = resultsSection.getBoundingClientRect().top
+        const offsetPosition = elementPosition + window.pageYOffset - 100
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        })
+        setShouldScrollToResults(false)
+      }
+    })
+  }, [shouldScrollToResults, loading, results]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -48,20 +68,10 @@ function Search() {
     }))
   }
 
-  const addTechStack = () => {
-    if (currentTechStack.trim() && !formData.tech_stack.includes(currentTechStack.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        tech_stack: [...prev.tech_stack, currentTechStack.trim()]
-      }))
-      setCurrentTechStack('')
-    }
-  }
-
-  const removeTechStack = (tech) => {
+  const handleTechStackChange = (techStack) => {
     setFormData(prev => ({
       ...prev,
-      tech_stack: prev.tech_stack.filter(t => t !== tech)
+      tech_stack: techStack
     }))
   }
 
@@ -139,7 +149,7 @@ function Search() {
     }
   }
 
-  const fetchRepos = async (page = 1, useCache = false) => {
+  const fetchRepos = async (page = 1, useCache = false, searchFormData = formData) => {
     // If we have cached data and we're just changing pages, use cache
     if (useCache && cachedAllRecommendations && cachedAllRecommendations.length > 0) {
       const reposPerPage = 12
@@ -169,7 +179,7 @@ function Search() {
       const page1Response = await fetch(`http://localhost:8000/match?page=1&include_issues=false`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(searchFormData),
       })
       const page1Data = page1Response.ok ? await page1Response.json() : null
       
@@ -253,6 +263,7 @@ function Search() {
     setCachedPagination(null)
     setPendingIssueRepos({})
     setCurrentPage(1)  // Reset to page 1 on new search
+    setShouldScrollToResults(true)
     await fetchRepos(1, false)  // Don't use cache, fetch fresh data
   }
 
@@ -305,46 +316,10 @@ function Search() {
 
           <form onSubmit={handleSubmit} className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-8 space-y-6">
             {/* Coding Languages */}
-            <div>
-              <label className="block text-white font-semibold mb-2">
-                Coding Languages
-              </label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={currentTechStack}
-                  onChange={(e) => setCurrentTechStack(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTechStack())}
-                  className="flex-1 px-4 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                  placeholder="e.g., React, Python, Node.js"
-                />
-                <button
-                  type="button"
-                  onClick={addTechStack}
-                  className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg transition-colors"
-                >
-                  Add
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {formData.tech_stack.map((tech, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-3 py-1 bg-sky-600 text-white rounded-full text-sm"
-                  >
-                    {tech}
-                    <button
-                      type="button"
-                      onClick={() => removeTechStack(tech)}
-                      className="ml-2 hover:text-red-300"
-                      aria-label={`Remove ${tech}`}
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
+            <LanguageAutocomplete
+              value={formData.tech_stack}
+              onChange={handleTechStackChange}
+            />
 
             {/* Interests */}
             <div>
@@ -361,9 +336,6 @@ function Search() {
                 placeholder="Describe your interests"
                 required
               />
-              <p className="text-zinc-400 text-sm mt-2">
-                Tell us about the types of projects you&apos;re interested in and what you hope to contribute to.
-              </p>
             </div>
 
             {/* Skill Level */}

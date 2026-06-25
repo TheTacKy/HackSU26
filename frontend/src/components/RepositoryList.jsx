@@ -14,6 +14,9 @@ function RepositoryList({
         <h2 className="text-3xl font-bold text-white mb-6 text-center">
           Recommended Repositories
         </h2>
+        <div className="text-center mb-4" aria-hidden="true">
+          <div className="h-5 w-56 mx-auto rounded bg-zinc-700/60 animate-pulse" />
+        </div>
         <div className="grid lg:grid-cols-2 2xl:grid-cols-3 gap-8">
           {Array.from({ length: 6 }, (_, index) => (
             <RepositoryCard key={index} isSkeleton repo={{ name: `skeleton-${index}`, url: '#' }} />
