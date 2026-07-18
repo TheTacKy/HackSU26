@@ -1,16 +1,11 @@
 from pydantic import BaseModel
-from typing import List, Optional
-
-
 class UserProfile(BaseModel):
-    tech_stack: List[str]
-    interests: str  # Changed from List[str] to str for prompt-based input
+    tech_stack: list[str]
+    interests: str
     skill_level: str
     open_source_experience: str
-    occupation: Optional[str] = None
-    contribution_type: Optional[str] = None
 
 
 class IssuesBatchRequest(BaseModel):
-    repositories: List[str]
+    repositories: list[str]
     experience: str

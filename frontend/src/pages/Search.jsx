@@ -303,15 +303,12 @@ function Search() {
       </nav>
 
       {/* Form Section */}
-      <div className="container mx-auto px-4 py-12 max-w-7xl">
+      <div className="container mx-auto px-4 pt-6 pb-12 max-w-7xl">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-4">
               Find Your Perfect Repository
             </h1>
-            <p className="text-zinc-400 text-lg">
-              Tell us about yourself and we&apos;ll match you with the best open source projects
-            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-8 space-y-6">

@@ -1,30 +1,16 @@
 from app.github_client import search_repositories
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-import re
 
 def find_repos(persona):
     tech_stack = persona["stack"] if persona["stack"] else ["Python"]
-    
-    # Use extracted keywords from keyword extraction agent (if available)
-    if "extracted_keywords" in persona and persona["extracted_keywords"]:
-        interest_keywords = persona["extracted_keywords"]
-    else:
-        # Fallback: simple keyword extraction
-        interests_prompt = persona.get("interests", "") or "open source"
-        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'i', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'me', 'you', 'him', 'her', 'us', 'them', 'what', 'which', 'who', 'whom', 'whose', 'where', 'when', 'why', 'how', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once'}
-        words = re.findall(r'\b\w{3,}\b', interests_prompt.lower())
-        interest_keywords = [word for word in words if word not in stop_words][:10]
-        if not interest_keywords:
-            interest_keywords = ["open source"]
+    interest_keywords = persona["extracted_keywords"]
     
     # Normalize tech stack to lowercase for comparison
     tech_stack_lower = [tech.lower() for tech in tech_stack]
     
     all_repos = {}
     repo_scores = {}
-    total_queries = 0
-    total_repos_from_api = 0
     
     # Search for each interest keyword (without language restriction for broader results)
     six_months_ago = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
@@ -66,8 +52,6 @@ def find_repos(persona):
         for future in as_completed(future_to_spec):
             query_type, language = future_to_spec[future]
             repos_result = future.result()
-            total_queries += 1
-            total_repos_from_api += len(repos_result)
 
             if query_type == "general":
                 repos_general = repos_result
@@ -75,12 +59,10 @@ def find_repos(persona):
                 language_results.append((language, repos_result))
     
     # If combined OR query returns 0 results, try individual keyword queries as fallback
-    if len(repos_general) == 0 and len(top_keywords) > 1:
+    if not repos_general and len(top_keywords) > 1:
         for keyword in top_keywords[:2]:  # Try top 2 keywords individually
             query_individual = f"{keyword}+{base_filters}"
             repos_individual = search_repositories(query_individual, per_page=50)
-            total_queries += 1
-            total_repos_from_api += len(repos_individual)
             
             # Process individual results
             for repo in repos_individual:
@@ -93,7 +75,7 @@ def find_repos(persona):
                     for tech in tech_stack_lower
                 ) if repo_language else False
                 
-                if (matches_language or not repo_language) and not repo.get("archived", False) and repo.get("private", False) == False:
+                if (matches_language or not repo_language) and not repo.get("archived") and not repo.get("private"):
                     if repo_id not in all_repos:
                         all_repos[repo_id] = repo
                         repo_scores[repo_id] = 0
@@ -115,7 +97,7 @@ def find_repos(persona):
         ) if repo_language else False
         
         # Include repos that match at least one language, or if no language specified
-        if (matches_language or not repo_language) and not repo.get("archived", False) and repo.get("private", False) == False:
+        if (matches_language or not repo_language) and not repo.get("archived") and not repo.get("private"):
             if repo_id not in all_repos:
                 all_repos[repo_id] = repo
                 repo_scores[repo_id] = 0
@@ -138,7 +120,7 @@ def find_repos(persona):
         for repo in repos_lang:
             repo_id = repo["id"]
             # Verify repo is open source and not archived
-            if not repo.get("archived", False) and repo.get("private", False) == False:
+            if not repo.get("archived") and not repo.get("private"):
                 if repo_id not in all_repos:
                     all_repos[repo_id] = repo
                     repo_scores[repo_id] = 0
@@ -155,19 +137,13 @@ def find_repos(persona):
     
     # Filter out any archived or private repos and check for recent activity
     filtered_repos = []
-    skipped_archived = 0
-    skipped_private = 0
-    skipped_old = 0
-    skipped_no_date = 0
     
     three_months_ago = datetime.now(timezone.utc) - timedelta(days=90)
     
     for repo in all_repos.values():
         if repo.get("archived", False):
-            skipped_archived += 1
             continue
-        if repo.get("private", False) == True:
-            skipped_private += 1
+        if repo.get("private"):
             continue
         
         # Check if repo has recent activity (updated in last 3 months)
@@ -184,14 +160,11 @@ def find_repos(persona):
                 # Only include repos updated in the last 3 months
                 if updated_date >= three_months_ago:
                     filtered_repos.append(repo)
-                else:
-                    skipped_old += 1
             except (ValueError, AttributeError, TypeError) as e:
                 # If date parsing fails, include the repo anyway (better to include than exclude)
                 filtered_repos.append(repo)
         else:
             # If no updated_at, skip this repo (likely inactive)
-            skipped_no_date += 1
             continue
     
     # Sort repos by score (highest first), then by stars as tiebreaker
@@ -201,5 +174,4 @@ def find_repos(persona):
         reverse=True
     )
     # Return up to 50 repos for ranking (enough for 3 pages of 12 + buffer)
-    result = sorted_repos[:50]
-    return result
+    return sorted_repos[:50]

@@ -150,11 +150,8 @@ function LanguageAutocomplete({ value, onChange }) {
             ))}
           </div>
         )}
-        <p className="text-zinc-400 text-sm mt-2">
-          Type to filter, then press Enter to select the highlighted language.
-        </p>
       </div>
-      <div className="flex flex-wrap gap-2 mt-2">
+      <div className="flex min-h-8 flex-wrap gap-2 mt-2">
         {value.map((language) => (
           <span
             key={language}

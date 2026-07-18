@@ -1,38 +1,30 @@
-from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from app.schemas import UserProfile, IssuesBatchRequest
-from app.services.matcher_service import run_matcher, run_matcher_with_options
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from app.agents.issue_agent import fetch_issues
 from app.agents.recommendation_agent import serialize_issues
+from app.schemas import UserProfile, IssuesBatchRequest
+from app.services.matcher_service import run_matcher
 
 
 app = FastAPI()
 
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Frontend dev server
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["POST"],
+    allow_headers=["content-type"],
 )
 
 
 @app.post("/match")
 def match(
     profile: UserProfile,
-    page: int = Query(1, ge=1, le=10),
-    include_issues: bool = Query(True)
+    include_issues: bool = True,
 ):
-    """
-    Match user profile with repositories.
-    page: Page number for client-side cached pagination
-    """
-    if include_issues:
-        return run_matcher(profile, page=page)
-    return run_matcher_with_options(profile, page=page, include_issues=False)
+    return run_matcher(profile, include_issues=include_issues)
 
 
 @app.post("/issues/batch")
