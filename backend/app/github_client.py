@@ -1,5 +1,8 @@
+import hashlib
 import requests
 import time
+
+from app.cache import get_json, set_json
 from app.config import GITHUB_TOKEN
 
 
@@ -30,6 +33,11 @@ def search_repositories(query, per_page=50, max_retries=3):
     per_page: Number of results per page (max 100, default 30)
     max_retries: Maximum number of retries on rate limit
     """
+    cache_key = f"v1:github-search:{hashlib.sha256(f'{query}:{per_page}'.encode()).hexdigest()}"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
+
     url = f"https://api.github.com/search/repositories?q={query}&sort=stars&per_page={per_page}"
     
     for attempt in range(max_retries):
@@ -46,6 +54,7 @@ def search_repositories(query, per_page=50, max_retries=3):
             remaining = response.headers.get("X-RateLimit-Remaining", "unknown")
             limit = response.headers.get("X-RateLimit-Limit", "unknown")
             print(f"  -> Found {len(items)} repos (total: {total_count}, rate limit: {remaining}/{limit})")
+            set_json(cache_key, items, ttl=1200)
             return items
         elif response.status_code == 403:
             # Rate limit exceeded
@@ -75,6 +84,11 @@ def search_repositories(query, per_page=50, max_retries=3):
 
 def get_all_open_issues(owner, repo, timeout=5):
     """Fetch all open issues without label filter. Added timeout to prevent hanging."""
+    cache_key = f"v1:issues:{owner.lower()}/{repo.lower()}"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
+
     url = f"https://api.github.com/repos/{owner}/{repo}/issues?state=open&per_page=20&sort=updated&direction=desc"
     try:
         response = _timed_get(
@@ -88,7 +102,9 @@ def get_all_open_issues(owner, repo, timeout=5):
             # Filter out pull requests (GitHub API returns both issues and PRs)
             # PRs have a 'pull_request' key, issues don't
             issues_only = [issue for issue in issues if 'pull_request' not in issue]
-            return issues_only if isinstance(issues_only, list) else []
+            result = issues_only if isinstance(issues_only, list) else []
+            set_json(cache_key, result, ttl=600)
+            return result
         return []
     except requests.Timeout:
         return []

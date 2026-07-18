@@ -1,8 +1,10 @@
-from dotenv import dotenv_values
+import os
 from pathlib import Path
 
-env_path = Path(__file__).parent.parent / ".env"
-env_vars = dotenv_values(env_path)
+from dotenv import load_dotenv
 
-GITHUB_TOKEN = env_vars.get("GITHUB_TOKEN")
-OPENAI_API_KEY = env_vars.get("OPENAI_API_KEY")
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
