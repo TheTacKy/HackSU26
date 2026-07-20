@@ -27,6 +27,7 @@ function Search() {
   const [formData, setFormData] = useState(getInitialFormData())
 
   const [loading, setLoading] = useState(false)
+  const [loadingStatus, setLoadingStatus] = useState('Finding repositories…')
   const [error, setError] = useState(null)
   const [results, setResults] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -41,6 +42,27 @@ function Search() {
   useEffect(() => {
     Cookies.set('formData', JSON.stringify(formData), { expires: 7 });
   }, [formData]);
+
+  useEffect(() => {
+    if (!loading || results) {
+      return
+    }
+
+    setLoadingStatus('Finding repositories…')
+    const rankingTimer = setTimeout(
+      () => setLoadingStatus('Ranking repositories…'),
+      1500
+    )
+    const preparingTimer = setTimeout(
+      () => setLoadingStatus('Preparing recommendations…'),
+      4000
+    )
+
+    return () => {
+      clearTimeout(rankingTimer)
+      clearTimeout(preparingTimer)
+    }
+  }, [loading, results])
 
   useEffect(() => {
     if (!shouldScrollToResults || (!loading && !results)) {
@@ -423,6 +445,7 @@ function Search() {
               repositories={results}
               pagination={pagination}
               loading={loading && !results}
+              loadingStatus={loadingStatus}
               loadingIssues={loadingIssues}
               pendingIssueRepos={pendingIssueRepos}
             />

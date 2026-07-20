@@ -5,6 +5,7 @@ function RepositoryList({
   repositories,
   pagination,
   loading = false,
+  loadingStatus = 'Finding repositories…',
   loadingIssues = false,
   pendingIssueRepos = {},
 }) {
@@ -14,9 +15,13 @@ function RepositoryList({
         <h2 className="text-3xl font-bold text-white mb-6 text-center">
           Recommended Repositories
         </h2>
-        <div className="text-center mb-4" aria-hidden="true">
-          <div className="loading-pulse h-5 w-56 mx-auto rounded bg-zinc-700/60" />
-        </div>
+        <p
+          className="min-h-6 text-center text-zinc-400 mb-4"
+          role="status"
+          aria-live="polite"
+        >
+          {loadingStatus}
+        </p>
         <div className="grid lg:grid-cols-2 2xl:grid-cols-3 gap-8">
           {Array.from({ length: 6 }, (_, index) => (
             <RepositoryCard key={index} isSkeleton repo={{ name: `skeleton-${index}`, url: '#' }} />
@@ -40,7 +45,7 @@ function RepositoryList({
         Recommended Repositories
       </h2>
       {pagination && (
-        <div className="text-center text-zinc-400 mb-4">
+        <div className="min-h-6 text-center text-zinc-400 mb-4">
           Page {pagination.current_page} of {pagination.total_pages} ({pagination.total_repos} repositories found)
         </div>
       )}
@@ -76,6 +81,7 @@ RepositoryList.propTypes = {
     total_repos: PropTypes.number,
   }),
   loading: PropTypes.bool,
+  loadingStatus: PropTypes.string,
   loadingIssues: PropTypes.bool,
   pendingIssueRepos: PropTypes.object,
 }
