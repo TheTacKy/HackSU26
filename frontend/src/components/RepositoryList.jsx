@@ -15,7 +15,7 @@ function RepositoryList({
           Recommended Repositories
         </h2>
         <div className="text-center mb-4" aria-hidden="true">
-          <div className="h-5 w-56 mx-auto rounded bg-zinc-700/60 animate-pulse" />
+          <div className="loading-pulse h-5 w-56 mx-auto rounded bg-zinc-700/60" />
         </div>
         <div className="grid lg:grid-cols-2 2xl:grid-cols-3 gap-8">
           {Array.from({ length: 6 }, (_, index) => (

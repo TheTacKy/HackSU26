@@ -22,11 +22,15 @@
     background: linear-gradient(
       90deg,
       rgba(63, 63, 70, 0.9) 0%,
-      rgba(82, 82, 91, 0.95) 50%,
+      rgba(75, 75, 83, 0.92) 50%,
       rgba(63, 63, 70, 0.9) 100%
     );
     background-size: 200% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
+    animation: shimmer 4s ease-in-out infinite;
+  }
+
+  .loading-pulse {
+    animation: loading-pulse 4s ease-in-out infinite;
   }
 
   @keyframes shimmer {
@@ -35,6 +39,22 @@
     }
     100% {
       background-position: -200% 0;
+    }
+  }
+
+  @keyframes loading-pulse {
+    0%, 100% {
+      opacity: 0.65;
+    }
+    50% {
+      opacity: 0.85;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton,
+    .loading-pulse {
+      animation: none;
     }
   }
 

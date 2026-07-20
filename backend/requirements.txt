@@ -4,3 +4,4 @@ requests
 openai
 python-dotenv
 redis
+yake

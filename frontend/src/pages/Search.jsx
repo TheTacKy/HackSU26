@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import Cookies from 'js-cookie'
 import RepositoryList from '../components/RepositoryList'
@@ -6,6 +6,7 @@ import Pagination from '../components/Pagination'
 import LanguageAutocomplete from '../components/LanguageAutocomplete'
 
 function Search() {
+  const searchStartedAt = useRef(null)
   const getInitialFormData = () => {
     const saved = Cookies.get('formData');
     if (saved) {
@@ -106,6 +107,7 @@ function Search() {
 
     setLoadingIssues(true)
     setPendingIssueRepos((prev) => ({ ...prev, ...pendingMap }))
+    const issuesStartedAt = performance.now()
 
     try {
       const response = await fetch('http://localhost:8000/issues/batch', {
@@ -118,6 +120,7 @@ function Search() {
       })
 
       const data = response.ok ? await response.json() : null
+      console.log(`[FRONTEND] issues_response total_time=${((performance.now() - issuesStartedAt) / 1000).toFixed(4)}s`)
       const issuesByRepo = data?.issues ?? {}
 
       setCachedAllRecommendations((prev) => {
@@ -174,14 +177,16 @@ function Search() {
     setError(null)
 
     try {
-      // Fetch once and paginate locally to avoid redundant backend calls.
-      console.log('Fetching page 1...')
+      const requestStartedAt = performance.now()
       const page1Response = await fetch(`http://localhost:8000/match?page=1&include_issues=false`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(searchFormData),
       })
+      console.log(`[FRONTEND] match_headers total_time=${((performance.now() - requestStartedAt) / 1000).toFixed(4)}s`)
+      const jsonStartedAt = performance.now()
       const page1Data = page1Response.ok ? await page1Response.json() : null
+      console.log(`[FRONTEND] match_json_parse total_time=${((performance.now() - jsonStartedAt) / 1000).toFixed(4)}s`)
       
       if (!page1Data || !page1Data.recommendations) {
         throw new Error('Failed to fetch repositories. Please try again.')
@@ -223,6 +228,13 @@ function Search() {
 
       setResults(paginatedResults)
       setCurrentPage(page)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (searchStartedAt.current !== null) {
+            console.log(`[FRONTEND] repositories_visible total_time=${((performance.now() - searchStartedAt.current) / 1000).toFixed(4)}s`)
+          }
+        })
+      })
 
       if (paginatedResults.length === 0) {
         if (allRecommendations.length === 0) {
@@ -234,7 +246,7 @@ function Search() {
         setError(null)
       }
 
-      console.log(`Fetched and cached ${allRecommendations.length} total recommendations, showing page ${page}`)
+      console.log(`[FRONTEND] repositories_processed count=${allRecommendations.length} page=${page}`)
       await fetchIssuesForRepos(paginatedResults, allRecommendations)
     } catch (err) {
       setError(err.message || 'Failed to fetch matches. Please try again.')
@@ -257,11 +269,16 @@ function Search() {
       setError('Please describe your interests.')
       return
     }
+
+    searchStartedAt.current = performance.now()
+    console.log('[FRONTEND] search_started')
     
     // Clear cache on new search
     setCachedAllRecommendations(null)
     setCachedPagination(null)
     setPendingIssueRepos({})
+    setResults(null)
+    setPagination(null)
     setCurrentPage(1)  // Reset to page 1 on new search
     setShouldScrollToResults(true)
     await fetchRepos(1, false)  // Don't use cache, fetch fresh data

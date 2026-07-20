@@ -33,6 +33,7 @@ def search_repositories(query, per_page=50, max_retries=3):
     per_page: Number of results per page (max 100, default 30)
     max_retries: Maximum number of retries on rate limit
     """
+    print(f"[GITHUB_API] search query={query}")
     cache_key = f"v1:github-search:{hashlib.sha256(f'{query}:{per_page}'.encode()).hexdigest()}"
     cached = get_json(cache_key)
     if cached is not None:

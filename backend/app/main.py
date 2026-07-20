@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +18,17 @@ app.add_middleware(
     allow_methods=["POST"],
     allow_headers=["content-type"],
 )
+
+
+@app.middleware("http")
+async def log_request_time(request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    print(
+        f"[HTTP] method={request.method} path={request.url.path} "
+        f"status={response.status_code} total_time={time.perf_counter() - started:.4f}s"
+    )
+    return response
 
 
 @app.post("/match")
