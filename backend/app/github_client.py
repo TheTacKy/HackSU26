@@ -1,6 +1,7 @@
 import hashlib
 import requests
 import time
+from requests.adapters import HTTPAdapter
 
 from app.cache import get_json, set_json
 from app.config import GITHUB_TOKEN
@@ -8,11 +9,17 @@ from app.config import GITHUB_TOKEN
 
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
 SEARCH_TIMEOUT = (2, 8)
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
+SESSION.mount(
+    "https://",
+    HTTPAdapter(pool_connections=20, pool_maxsize=20, pool_block=True),
+)
 
 def _timed_get(url, *, headers=None, timeout=None, label="request", log=True):
     start_time = time.time()
     try:
-        response = requests.get(url, headers=headers, timeout=timeout)
+        response = SESSION.get(url, headers=headers, timeout=timeout)
         elapsed = time.time() - start_time
         if log:
             print(
