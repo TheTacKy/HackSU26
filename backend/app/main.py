@@ -24,10 +24,13 @@ app.add_middleware(
 async def log_request_time(request, call_next):
     started = time.perf_counter()
     response = await call_next(request)
+    elapsed = time.perf_counter() - started
     print(
         f"[HTTP] method={request.method} path={request.url.path} "
-        f"status={response.status_code} total_time={time.perf_counter() - started:.4f}s"
+        f"status={response.status_code} total_time={elapsed:.4f}s"
     )
+    if request.method == "POST" and request.url.path == "/match":
+        print(f"[FINAL TIME] repository_finder total_time={elapsed:.4f}s")
     return response
 
 

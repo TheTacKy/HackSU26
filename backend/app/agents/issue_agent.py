@@ -1,5 +1,4 @@
 from app.github_client import get_all_open_issues
-import time
 
 
 def _has_label(issue, target_label):
@@ -27,8 +26,6 @@ def _prioritize_issues(issues, preferred_label, fallback_label):
 def fetch_issues(repo, experience):
     owner = repo["owner"]["login"]
     name = repo["name"]
-    start_time = time.time()
-
     preferred_label = (
         "good first issue"
         if experience and experience.lower() in ["none", "none - first time contributor"]
@@ -40,10 +37,4 @@ def fetch_issues(repo, experience):
     prioritized_issues = _prioritize_issues(issues, preferred_label, fallback_label)
 
     # Ensure we return a list and limit to 5
-    final_issues = prioritized_issues[:5] if isinstance(prioritized_issues, list) else []
-    elapsed = time.time() - start_time
-    print(
-        f"[ISSUES] repo={owner}/{name} total_time={elapsed:.2f}s "
-        f"returned={len(final_issues)}"
-    )
-    return final_issues
+    return prioritized_issues[:5] if isinstance(prioritized_issues, list) else []

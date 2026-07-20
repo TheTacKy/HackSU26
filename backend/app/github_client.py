@@ -7,24 +7,28 @@ from app.config import GITHUB_TOKEN
 
 
 HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+SEARCH_TIMEOUT = (2, 8)
 
-def _timed_get(url, *, headers=None, timeout=None, label="request"):
+def _timed_get(url, *, headers=None, timeout=None, label="request", log=True):
     start_time = time.time()
     try:
         response = requests.get(url, headers=headers, timeout=timeout)
         elapsed = time.time() - start_time
-        print(
-            f"[GITHUB_API] {label} -> status={response.status_code} "
-            f"time={elapsed:.2f}s"
-        )
+        if log:
+            print(
+                f"[GITHUB_API] {label} -> status={response.status_code} "
+                f"time={elapsed:.2f}s"
+            )
         return response
     except requests.Timeout:
         elapsed = time.time() - start_time
-        print(f"[GITHUB_API] {label} -> timeout after {elapsed:.2f}s")
+        if log:
+            print(f"[GITHUB_API] {label} -> timeout after {elapsed:.2f}s")
         raise
     except Exception as exc:
         elapsed = time.time() - start_time
-        print(f"[GITHUB_API] {label} -> failed after {elapsed:.2f}s: {exc}")
+        if log:
+            print(f"[GITHUB_API] {label} -> failed after {elapsed:.2f}s: {exc}")
         raise
 
 def search_repositories(query, per_page=50, max_retries=3):
@@ -37,7 +41,10 @@ def search_repositories(query, per_page=50, max_retries=3):
     cache_key = f"v1:github-search:{hashlib.sha256(f'{query}:{per_page}'.encode()).hexdigest()}"
     cached = get_json(cache_key)
     if cached is not None:
+        print(f"[GITHUB_API] repository_search source=redis status=hit results={len(cached)}")
         return cached
+
+    print("[GITHUB_API] repository_search source=github status=cache_miss")
 
     url = f"https://api.github.com/search/repositories?q={query}&sort=stars&per_page={per_page}"
     
@@ -45,6 +52,7 @@ def search_repositories(query, per_page=50, max_retries=3):
         response = _timed_get(
             url,
             headers=HEADERS,
+            timeout=SEARCH_TIMEOUT,
             label=f"search_repositories attempt={attempt + 1}/{max_retries}"
         )
         
@@ -96,7 +104,7 @@ def get_all_open_issues(owner, repo, timeout=5):
             url,
             headers=HEADERS,
             timeout=timeout,
-            label=f"get_all_open_issues repo={owner}/{repo}"
+            log=False,
         )
         if response.status_code == 200:
             issues = response.json()
