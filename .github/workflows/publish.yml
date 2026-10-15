@@ -36,16 +36,19 @@ jobs:
         env:
           ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
         run: |
-          if [ -z "$ROLE_ARN" ]; then
-            echo '::error::Set the AWS_ROLE_ARN repository variable before publishing.'
+          if [ "$ROLE_ARN" != 'arn:aws:iam::160358211926:role/repo-scout-github-deploy' ]; then
+            echo '::error::AWS_ROLE_ARN must exactly match the repo-scout-github-deploy role ARN (without spaces or newlines).'
             exit 1
           fi
+      - name: Diagnose GitHub OIDC identity
+        run: node .github/scripts/oidc-diagnostic.mjs
       - name: Authenticate to AWS using GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           allowed-account-ids: '160358211926'
+          retry-max-attempts: 2
       - name: Log in to ECR
         run: |
           set -euo pipefail
