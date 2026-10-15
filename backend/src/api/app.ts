@@ -1,8 +1,10 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import fastifyStatic from "@fastify/static";
 import { fetchIssues, mapWithConcurrency, serializeIssues } from "../services/issue-service.js";
 import { runMatcher } from "../services/matcher-service.js";
 import type { UserProfile } from "../types/index.js";
+import { GitHubSearchError } from "../clients/github-search-error.js";
 
 interface IssuesRequest { repositories: string[]; experience: string }
 
@@ -25,8 +27,18 @@ function isIssuesRequest(value: unknown): value is IssuesRequest {
     && typeof value.experience === "string";
 }
 
-export function buildApp() {
+export function buildApp(staticRoot = process.env.STATIC_ROOT) {
   const app = Fastify({ logger: false });
+  app.get("/health", async () => ({ status: "ok" }));
+  if (staticRoot) {
+    app.register(fastifyStatic, { root: staticRoot });
+    app.setNotFoundHandler((request, reply) => {
+      if ((request.method === "GET" || request.method === "HEAD") && request.url.split("?")[0] === "/search") {
+        return reply.sendFile("index.html");
+      }
+      return reply.code(404).send({ error: "Not found" });
+    });
+  }
   app.register(cors, {
     origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
     methods: ["POST"],
@@ -48,7 +60,14 @@ export function buildApp() {
   app.post("/match", async (request, reply) => {
     if (!isProfile(request.body)) return reply.code(422).send({ detail: "Invalid user profile" });
     const query = request.query as { include_issues?: string };
-    return runMatcher(request.body, query.include_issues !== "false");
+    try {
+      return await runMatcher(request.body, query.include_issues !== "false");
+    } catch (error) {
+      if (error instanceof GitHubSearchError) {
+        return reply.code(error.statusCode).send({ code: error.code, detail: error.message });
+      }
+      throw error;
+    }
   });
 
   app.post("/issues/batch", async (request, reply) => {

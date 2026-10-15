@@ -26,6 +26,7 @@ The frontend runs at `http://localhost:5173`. The backend runs at `http://localh
 
 ## API Keys Needed
 
+
 Create `backend/.env`:
 
 ```env
@@ -35,3 +36,25 @@ REDIS_URL=redis://localhost:6379/0
 ```
 
 No API key names need to change. `REDIS_URL` is optional and points to the local or deployed Redis instance.
+
+## Basic Unit Tests
+
+From the project root, run:
+
+```bash
+npm --prefix backend run test:basic
+```
+
+On PowerShell, use `npm.cmd` instead of `npm` if script execution is disabled.
+
+The beginner-friendly tests in `backend/test/ranking.test.ts` check repository
+ordering, duplicate/invalid indexes, empty rankings, and empty repository lists.
+They use Vitest and run locally without API requests, API keys, or Redis.
+The first example follows **Arrange** (input), **Act** (call the function), and
+**Assert** (check the expected result).
+
+To run the entire backend test suite:
+
+```bash
+npm --prefix backend test
+```

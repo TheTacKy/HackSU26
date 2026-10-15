@@ -6,6 +6,7 @@ let connection: Promise<boolean> | null = null;
 let retryAfter = 0;
 
 async function connectedClient(): Promise<RedisClientType | null> {
+  if (!config.redisUrl) return null;
   if (client?.isReady) return client;
   if (Date.now() < retryAfter) return null;
   if (!connection) {
