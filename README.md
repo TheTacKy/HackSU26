@@ -43,7 +43,11 @@ npm --prefix backend test
 ## Lambda deployment preparation
 
 The Docker image includes AWS Lambda Web Adapter, which forwards Lambda HTTP
-invocations to the existing Fastify server on port 8000. It waits for `/health`
+invocations to the existing Fastify server on port 8000. Adapter version 1.1.0
+is compiled from AWS's official source, pinned to a commit and archive checksum,
+to avoid public ECR anonymous download limits. Rust is used only during the build;
+it is not included in the final application image. This adds compilation time.
+It waits for `/health`
 to return 200 before forwarding requests. React is served by the same server,
 so frontend API requests use the same origin. Redis is disabled in the image
 unless `REDIS_URL` is explicitly configured.

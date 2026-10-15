@@ -1,3 +1,14 @@
+# Build AWS's adapter from pinned source to avoid anonymous public ECR pull limits.
+# The builder and runtime both use Debian bookworm for libc compatibility.
+FROM rust:1-bookworm AS lambda-adapter
+WORKDIR /build/adapter
+RUN curl --fail --location --retry 5 --retry-all-errors \
+      https://codeload.github.com/aws/aws-lambda-web-adapter/tar.gz/596bdbcea78a89084fd0b522807d04cd2f1f3f7e \
+      --output /tmp/adapter.tar.gz \
+    && echo '41e437baff00539d5cd4bf6c7a9f9f6106386b9cf5461c38c19b969b94b568ea  /tmp/adapter.tar.gz' | sha256sum --check - \
+    && tar -xzf /tmp/adapter.tar.gz --strip-components=1 \
+    && cargo build --locked --release --bin lambda-adapter
+
 FROM node:24-bookworm-slim AS frontend
 WORKDIR /build/frontend
 COPY frontend/package*.json ./
@@ -14,7 +25,7 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim
 # Bridges Lambda invocation events to the existing Fastify HTTP server.
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.1.0 /lambda-adapter /opt/extensions/lambda-adapter
+COPY --from=lambda-adapter /build/adapter/target/release/lambda-adapter /opt/extensions/lambda-adapter
 ENV NODE_ENV=production PORT=8000 STATIC_ROOT=/app/public REDIS_URL=""
 ENV AWS_LWA_PORT=8000 AWS_LWA_READINESS_CHECK_PATH=/health AWS_LWA_READINESS_CHECK_HEALTHY_STATUS=200
 WORKDIR /app
