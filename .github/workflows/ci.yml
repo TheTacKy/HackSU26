@@ -27,8 +27,8 @@ jobs:
       - name: Build and smoke-test production image
         run: |
           set -euo pipefail
-          docker build -t repo-scout:test .
-          docker run -d --name smoke -p 8000:8000 repo-scout:test
+          docker build --platform linux/amd64 --provenance=false -t repo-scout:test .
+          docker run -d --name smoke --read-only --tmpfs /tmp -p 8000:8000 repo-scout:test
           trap 'docker logs smoke; docker rm -f smoke' EXIT
           curl --fail --retry 15 --retry-all-errors --retry-delay 2 --connect-timeout 2 --max-time 5 http://localhost:8000/health
           curl --fail http://localhost:8000/ | grep -q '<div id="root">'

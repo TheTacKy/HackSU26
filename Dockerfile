@@ -13,7 +13,10 @@ COPY backend/ ./
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim
+# Bridges Lambda invocation events to the existing Fastify HTTP server.
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.1.0 /lambda-adapter /opt/extensions/lambda-adapter
 ENV NODE_ENV=production PORT=8000 STATIC_ROOT=/app/public REDIS_URL=""
+ENV AWS_LWA_PORT=8000 AWS_LWA_READINESS_CHECK_PATH=/health AWS_LWA_READINESS_CHECK_HEALTHY_STATUS=200
 WORKDIR /app
 COPY --from=backend --chown=node:node /build/backend/package*.json ./
 COPY --from=backend --chown=node:node /build/backend/node_modules ./node_modules
