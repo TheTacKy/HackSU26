@@ -1,181 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PropTypes from 'prop-types'
-
-const languageSuggestions = [
-  'Assembly',
-  'Bash',
-  'C',
-  'C#',
-  'C++',
-  'Clojure',
-  'CSS',
-  'Dart',
-  'Elixir',
-  'Go',
-  'Groovy',
-  'Haskell',
-  'HTML',
-  'Java',
-  'JavaScript',
-  'Julia',
-  'Kotlin',
-  'Lua',
-  'Objective-C',
-  'PHP',
-  'Python',
-  'R',
-  'Ruby',
-  'Rust',
-  'Scala',
-  'Shell',
-  'SQL',
-  'Swift',
-  'TypeScript',
-]
-
-function normalizeLanguages(languages) {
-  const seen = new Set()
-  return languages.filter((language) => {
-    const key = language.toLowerCase()
-    if (seen.has(key)) {
-      return false
-    }
-    seen.add(key)
-    return true
-  })
-}
-
-function LanguageAutocomplete({ value, onChange }) {
+const languages = ['Any language', 'Assembly', 'Bash', 'C', 'C#', 'C++', 'Clojure', 'CSS', 'Dart', 'Elixir', 'Go', 'Groovy', 'Haskell', 'HTML', 'Java', 'JavaScript', 'Julia', 'Kotlin', 'Lua', 'Objective-C', 'PHP', 'Python', 'R', 'Ruby', 'Rust', 'Scala', 'Shell', 'SQL', 'Swift', 'TypeScript']
+export default function LanguageAutocomplete({ value, onChange }) {
   const [query, setQuery] = useState('')
-  const [showOptions, setShowOptions] = useState(false)
-  const [highlightedIndex, setHighlightedIndex] = useState(0)
-
-  const filteredOptions = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-    return languageSuggestions.filter((language) => {
-      const alreadySelected = value.some((item) => item.toLowerCase() === language.toLowerCase())
-      return !alreadySelected && (!normalizedQuery || language.toLowerCase().includes(normalizedQuery))
-    })
-  }, [query, value])
-
-  const addLanguage = (language) => {
-    onChange(normalizeLanguages([...value, language]))
-    setQuery('')
-    setShowOptions(false)
-    setHighlightedIndex(0)
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+  const input = useRef(null)
+  const options = useMemo(() => languages.filter(language => !value.some(item => item.toLowerCase() === language.toLowerCase()) && language.toLowerCase().includes(query.trim().toLowerCase())), [query, value])
+  useEffect(() => { if (open) document.getElementById(`language-option-${active}`)?.scrollIntoView({ block: 'nearest' }) }, [active, open])
+  const add = language => { onChange(language === 'Any language' ? [] : [...value, language]); setQuery(''); setOpen(false); setActive(0); input.current?.focus() }
+  const keyDown = e => {
+    if (e.key === 'Escape') { e.preventDefault(); setOpen(false) }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setOpen(true); setActive(previous => !open ? 0 : options.length ? (previous + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length : 0) }
+    if (e.key === 'Enter' && open) { e.preventDefault(); if (options[active]) add(options[active]) }
   }
-
-  const removeLanguage = (language) => {
-    const key = language.toLowerCase()
-    onChange(value.filter((item) => item.toLowerCase() !== key))
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setShowOptions(true)
-      setHighlightedIndex((prev) => (
-        filteredOptions.length === 0 ? 0 : (prev + 1) % filteredOptions.length
-      ))
-      return
-    }
-
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setShowOptions(true)
-      setHighlightedIndex((prev) => (
-        filteredOptions.length === 0 ? 0 : (prev - 1 + filteredOptions.length) % filteredOptions.length
-      ))
-      return
-    }
-
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      const highlightedLanguage = filteredOptions[highlightedIndex]
-      if (showOptions && highlightedLanguage) {
-        addLanguage(highlightedLanguage)
-      }
-    }
-  }
-
-  return (
-    <div>
-      <label className="block text-white font-semibold mb-2">
-        Coding Languages
-      </label>
-      <div className="relative mb-3">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setShowOptions(true)
-            setHighlightedIndex(0)
-          }}
-          onFocus={() => setShowOptions(true)}
-          onKeyDown={handleKeyDown}
-          onBlur={() => setShowOptions(false)}
-          className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-          placeholder="Search for a language"
-          role="combobox"
-          aria-expanded={showOptions}
-          aria-controls="language-options"
-          aria-autocomplete="list"
-        />
-        {showOptions && filteredOptions.length > 0 && (
-          <div
-            id="language-options"
-            role="listbox"
-            className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-lg border border-zinc-600 bg-zinc-800 shadow-xl"
-          >
-            {filteredOptions.map((language, index) => (
-              <button
-                key={language}
-                type="button"
-                role="option"
-                aria-selected={index === highlightedIndex}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  addLanguage(language)
-                }}
-                className={`block w-full px-4 py-2 text-left text-sm transition-colors ${
-                  index === highlightedIndex
-                    ? 'bg-sky-600 text-white'
-                    : 'text-zinc-200 hover:bg-zinc-700'
-                }`}
-              >
-                {language}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex min-h-8 flex-wrap gap-2 mt-2">
-        {value.map((language) => (
-          <span
-            key={language}
-            className="inline-flex items-center px-3 py-1 bg-sky-600 text-white rounded-full text-sm"
-          >
-            {language}
-            <button
-              type="button"
-              onClick={() => removeLanguage(language)}
-              className="ml-2 hover:text-red-300"
-              aria-label={`Remove ${language}`}
-            >
-              x
-            </button>
-          </span>
-        ))}
-      </div>
-    </div>
-  )
+  return <div className="language-field"><label htmlFor="languages">Your languages </label><div className="language-input-wrap"><input ref={input} id="languages" autoComplete="off" value={query} onChange={e => { setQuery(e.target.value); setOpen(true); setActive(0) }} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onKeyDown={keyDown} placeholder="Search languages, e.g. Python, TypeScript…" role="combobox" aria-expanded={open} aria-controls={open ? 'language-options' : undefined} aria-autocomplete="list" aria-activedescendant={open && options[active] ? `language-option-${active}` : undefined} /><span className="input-symbol" aria-hidden="true">⌕</span>{open && <div id="language-options" role="listbox" aria-label="Programming languages" className="language-options">{options.length ? options.map((language, i) => <div id={`language-option-${i}`} key={language} role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)} onMouseDown={e => e.preventDefault()} onClick={() => add(language)}>{language}<span aria-hidden="true">+</span></div>) : <div role="option" aria-selected="false">No matching languages</div>}</div>}</div><div className="selected-languages">{value.length === 0 && <span className="any-language-tag">Any language</span>}{value.map(language => <span key={language}>{language}<button type="button" aria-label={`Remove ${language}`} onClick={() => onChange(value.filter(item => item !== language))}>×</button></span>)}</div></div>
 }
+LanguageAutocomplete.propTypes = { value: PropTypes.arrayOf(PropTypes.string).isRequired, onChange: PropTypes.func.isRequired }
 
-LanguageAutocomplete.propTypes = {
-  value: PropTypes.arrayOf(PropTypes.string).isRequired,
-  onChange: PropTypes.func.isRequired,
-}
 
-export default LanguageAutocomplete

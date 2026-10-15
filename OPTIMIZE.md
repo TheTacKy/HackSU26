@@ -106,7 +106,7 @@ Benefits include:
 ### 8. Fetch issues only when needed
 
 Opening a results page currently fetches issues for all 12 repositories. Alternatives include:
-
+ 
 - Fetch issues when a card is expanded.
 - Fetch only for cards entering the viewport.
 - Fetch issues for the first 3–4 results immediately and load the remainder later.

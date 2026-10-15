@@ -1,465 +1,137 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import Cookies from 'js-cookie'
 import RepositoryList from '../components/RepositoryList'
 import Pagination from '../components/Pagination'
 import LanguageAutocomplete from '../components/LanguageAutocomplete'
 
-function Search() {
-  const searchStartedAt = useRef(null)
-  const getInitialFormData = () => {
-    const saved = Cookies.get('formData');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing saved form data:', e);
-      }
-    }
-    return {
-      tech_stack: [],
-      interests: '',  // Changed from array to string for prompt-based input
-      skill_level: '',
-      open_source_experience: ''
-    };
-  };
-
-  const [formData, setFormData] = useState(getInitialFormData())
+const API = (import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:8000')).replace(/\/$/, '')
+const SIZE = 12
+const defaults = { tech_stack: [], interests: '', skill_level: '', open_source_experience: '' }
+const examples = ['Accessible web apps', 'Tools for game developers', 'Python for climate science']
+function initialProfile() {
+  try {
+    const saved = JSON.parse(Cookies.get('formData') || 'null')
+    if (saved && Array.isArray(saved.tech_stack) && saved.tech_stack.every(x => typeof x === 'string') && ['interests', 'skill_level', 'open_source_experience'].every(key => typeof saved[key] === 'string')) return saved
+  } catch { /* Ignore outdated saved preferences. */ }
+  return defaults
+}
+function scrollToResults() {
+  requestAnimationFrame(() => document.getElementById('recommended-repositories')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }))
+}
+export default function Search() {
+  const [formData, setFormData] = useState(initialProfile)
+  const [submitted, setSubmitted] = useState(null)
 
   const [loading, setLoading] = useState(false)
-  const [loadingStatus, setLoadingStatus] = useState('Finding repositories…')
   const [error, setError] = useState(null)
-  const [results, setResults] = useState(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pagination, setPagination] = useState(null)
-  const [loadingIssues, setLoadingIssues] = useState(false)
-  const [pendingIssueRepos, setPendingIssueRepos] = useState({})
-  const [shouldScrollToResults, setShouldScrollToResults] = useState(false)
-  // Cache all recommendations to avoid re-fetching on page changes
-  const [cachedAllRecommendations, setCachedAllRecommendations] = useState(null)
-  const [cachedPagination, setCachedPagination] = useState(null)
-
+  const [repos, setRepos] = useState(null)
+  const [page, setPage] = useState(1)
+  const [issueStates, setIssueStates] = useState({})
+  const generation = useRef(0)
+  const controllers = useRef(new Set())
+  const pending = useRef(new Set())
+  const interestsRef = useRef(null)
+  useEffect(() => { Cookies.set('formData', JSON.stringify(formData), { expires: 7 }) }, [formData])
   useEffect(() => {
-    Cookies.set('formData', JSON.stringify(formData), { expires: 7 });
-  }, [formData]);
-
-  useEffect(() => {
-    if (!loading || results) {
-      return
-    }
-
-    setLoadingStatus('Finding repositories…')
-    const rankingTimer = setTimeout(
-      () => setLoadingStatus('Ranking repositories…'),
-      1500
-    )
-    const preparingTimer = setTimeout(
-      () => setLoadingStatus('Preparing recommendations…'),
-      4000
-    )
-
-    return () => {
-      clearTimeout(rankingTimer)
-      clearTimeout(preparingTimer)
-    }
-  }, [loading, results])
-
-  useEffect(() => {
-    if (!shouldScrollToResults || (!loading && !results)) {
-      return
-    }
-
-    requestAnimationFrame(() => {
-      const resultsSection = document.getElementById('recommended-repositories')
-      if (resultsSection) {
-        const elementPosition = resultsSection.getBoundingClientRect().top
-        const offsetPosition = elementPosition + window.pageYOffset - 100
-        window.scrollTo({
-          top: offsetPosition,
-          behavior: 'smooth'
-        })
-        setShouldScrollToResults(false)
-      }
-    })
-  }, [shouldScrollToResults, loading, results]);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
-  }
-
-  const handleTechStackChange = (techStack) => {
-    setFormData(prev => ({
-      ...prev,
-      tech_stack: techStack
-    }))
-  }
-
-  const mergeIssuesIntoRecommendations = (recommendations, issuesByRepo) => (
-    recommendations.map((repo) => {
-      const issues = issuesByRepo[repo.full_name]
-      if (!issues) {
-        return repo
-      }
-
-      return {
-        ...repo,
-        issues,
-        issues_count: issues.length,
-        issuesLoaded: true,
-      }
-    })
-  )
-
-  const fetchIssuesForRepos = async (repositoriesForIssues, sourceRecommendations = null) => {
-    const missingRepos = repositoriesForIssues.filter(
-      (repo) => repo?.full_name && !repo.issuesLoaded
-    )
-
-    if (missingRepos.length === 0) {
-      return
-    }
-
-    const pendingMap = Object.fromEntries(
-      missingRepos.map((repo) => [repo.full_name, true])
-    )
-
-    setLoadingIssues(true)
-    setPendingIssueRepos((prev) => ({ ...prev, ...pendingMap }))
-    const issuesStartedAt = performance.now()
-
+    const active = controllers.current
+    return () => { generation.current += 1; active.forEach(controller => controller.abort()) }
+  }, [])
+  const loadIssues = async (candidates, profile, id, retry = false) => {
+    const missing = candidates.filter(repo => !repo.issuesLoaded && !pending.current.has(repo.full_name) && (retry || !issueStates[repo.full_name]))
+    if (!missing.length) return
+    const names = new Set(missing.map(repo => repo.full_name))
+    names.forEach(name => pending.current.add(name))
+    setIssueStates(prev => ({ ...prev, ...Object.fromEntries([...names].map(name => [name, 'loading'])) }))
+    const controller = new AbortController()
+    controllers.current.add(controller)
+    const timer = setTimeout(() => controller.abort(), 15000)
     try {
-      const response = await fetch('http://localhost:8000/issues/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repositories: missingRepos.map((repo) => repo.full_name),
-          experience: formData.open_source_experience,
-        }),
-      })
-
-      const data = response.ok ? await response.json() : null
-      console.log(`[FRONTEND] issues_response total_time=${((performance.now() - issuesStartedAt) / 1000).toFixed(4)}s`)
-      const issuesByRepo = data?.issues ?? {}
-
-      setCachedAllRecommendations((prev) => {
-        const base = sourceRecommendations ?? prev ?? []
-        const next = mergeIssuesIntoRecommendations(base, issuesByRepo)
-
-        if (sourceRecommendations) {
-          const reposPerPage = 12
-          const startIdx = (currentPage - 1) * reposPerPage
-          const endIdx = startIdx + reposPerPage
-          setResults(next.slice(startIdx, endIdx))
-        }
-
-        return next
-      })
-
-      setResults((prev) => mergeIssuesIntoRecommendations(prev ?? [], issuesByRepo))
-    } catch (issuesError) {
-      console.error('Error fetching issues:', issuesError)
+      const response = await fetch(`${API}/issues/batch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ repositories: [...names], experience: profile.open_source_experience }) })
+      if (!response.ok) throw new Error('Issue request failed')
+      const data = await response.json()
+      if (id !== generation.current) return
+      setRepos(prev => prev?.map(repo => names.has(repo.full_name) && Array.isArray(data.issues?.[repo.full_name]) ? { ...repo, issues: data.issues[repo.full_name], issuesLoaded: true } : repo))
+      setIssueStates(prev => ({ ...prev, ...Object.fromEntries([...names].map(name => [name, Array.isArray(data.issues?.[name]) ? 'done' : 'error'])) }))
+    } catch {
+      if (id === generation.current) setIssueStates(prev => ({ ...prev, ...Object.fromEntries([...names].map(name => [name, 'error'])) }))
     } finally {
-      setPendingIssueRepos((prev) => {
-        const next = { ...prev }
-        missingRepos.forEach((repo) => {
-          delete next[repo.full_name]
-        })
-        return next
-      })
-      setLoadingIssues(false)
+      clearTimeout(timer)
+      controllers.current.delete(controller)
+      if (id === generation.current) names.forEach(name => pending.current.delete(name))
     }
   }
-
-  const fetchRepos = async (page = 1, useCache = false, searchFormData = formData) => {
-    // If we have cached data and we're just changing pages, use cache
-    if (useCache && cachedAllRecommendations && cachedAllRecommendations.length > 0) {
-      const reposPerPage = 12
-      const startIdx = (page - 1) * reposPerPage
-      const endIdx = startIdx + reposPerPage
-      const paginatedResults = cachedAllRecommendations.slice(startIdx, endIdx)
-      
-      setResults(paginatedResults)
-      setCurrentPage(page)
-      if (cachedPagination) {
-        setPagination({
-          ...cachedPagination,
-          current_page: page
-        })
-      }
-      setError(null)
-      await fetchIssuesForRepos(paginatedResults)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
+  const search = async profile => {
+    if (!profile.interests.trim()) { setError('Tell us what you would like to work on.'); return }
+    controllers.current.forEach(controller => controller.abort())
+    pending.current.clear()
+    const id = ++generation.current
+    const snapshot = { ...profile, tech_stack: [...profile.tech_stack] }
+    setSubmitted(snapshot); setLoading(true); setError(null); setRepos(null); setPage(1); setIssueStates({})
+    scrollToResults()
+    const controller = new AbortController()
+    controllers.current.add(controller)
+    const timer = setTimeout(() => controller.abort(), 30000)
+    const started = performance.now()
     try {
-      const requestStartedAt = performance.now()
-      const page1Response = await fetch(`http://localhost:8000/match?page=1&include_issues=false`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(searchFormData),
-      })
-      console.log(`[FRONTEND] match_headers total_time=${((performance.now() - requestStartedAt) / 1000).toFixed(4)}s`)
-      const jsonStartedAt = performance.now()
-      const page1Data = page1Response.ok ? await page1Response.json() : null
-      console.log(`[FRONTEND] match_json_parse total_time=${((performance.now() - jsonStartedAt) / 1000).toFixed(4)}s`)
-      
-      if (!page1Data || !page1Data.recommendations) {
-        throw new Error('Failed to fetch repositories. Please try again.')
+      const response = await fetch(`${API}/match?include_issues=false`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify(snapshot) })
+      if (!response.ok) {
+        const failure = await response.json().catch(() => null)
+        throw new Error(failure?.detail || 'We couldn’t complete your search. Please try again.')
       }
-      
-      const allRecommendations = Array.isArray(page1Data.recommendations)
-        ? page1Data.recommendations.map((repo) => ({
-            ...repo,
-            issues: Array.isArray(repo.issues) ? repo.issues : [],
-            issues_count: repo.issues_count ?? 0,
-            issuesLoaded: false,
-          }))
-        : []
-
-      // Cache all recommendations
-      setCachedAllRecommendations(allRecommendations)
-      
-      // Use page 1 pagination info as base, but update with actual total
-      if (page1Data.pagination) {
-        const totalRepos = allRecommendations.length
-        const totalPages = Math.max(1, Math.ceil(totalRepos / 12))
-        const paginationInfo = {
-          ...page1Data.pagination,
-          total_repos: totalRepos,
-          total_pages: totalPages
-        }
-        setCachedPagination(paginationInfo)
-        setPagination({
-          ...paginationInfo,
-          current_page: page
-        })
-      }
-
-      // Paginate the cached results for the requested page
-      const reposPerPage = 12
-      const startIdx = (page - 1) * reposPerPage
-      const endIdx = startIdx + reposPerPage
-      const paginatedResults = allRecommendations.slice(startIdx, endIdx)
-
-      setResults(paginatedResults)
-      setCurrentPage(page)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (searchStartedAt.current !== null) {
-            console.log(`[FRONTEND] repositories_visible total_time=${((performance.now() - searchStartedAt.current) / 1000).toFixed(4)}s`)
-          }
-        })
-      })
-
-      if (paginatedResults.length === 0) {
-        if (allRecommendations.length === 0) {
-          setError('No repositories found matching your criteria. Please try adjusting your search.')
-        } else {
-          setError(`No repositories found for page ${page}. Total available: ${allRecommendations.length}`)
-        }
-      } else {
-        setError(null)
-      }
-
-      console.log(`[FRONTEND] repositories_processed count=${allRecommendations.length} page=${page}`)
-      await fetchIssuesForRepos(paginatedResults, allRecommendations)
+      const data = await response.json()
+      if (!Array.isArray(data.recommendations)) throw new Error('We received an unexpected response. Please try again.')
+      if (id !== generation.current) return
+      const next = data.recommendations.map(repo => ({ ...repo, issues: [], issuesLoaded: false }))
+      setRepos(next); setLoading(false)
+      console.log(`[FRONTEND] repositories_received total_time=${((performance.now() - started) / 1000).toFixed(4)}s`)
+      void loadIssues(next.slice(0, SIZE), snapshot, id, true)
     } catch (err) {
-      setError(err.message || 'Failed to fetch matches. Please try again.')
-      console.error('Error submitting form:', err)
+      if (id === generation.current) setError(err.name === 'AbortError' ? 'This search took too long. Try again or use a more specific interest.' : err.message)
     } finally {
-      setLoading(false)
+      clearTimeout(timer); controllers.current.delete(controller)
+      if (id === generation.current) setLoading(false)
     }
   }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    // Validate that tech_stack and interests are not empty
-    if (formData.tech_stack.length === 0) {
-      setError('Please add at least one coding language.')
-      return
-    }
-    
-    if (!formData.interests.trim()) {
-      setError('Please describe your interests.')
-      return
-    }
-
-    searchStartedAt.current = performance.now()
-    console.log('[FRONTEND] search_started')
-    
-    // Clear cache on new search
-    setCachedAllRecommendations(null)
-    setCachedPagination(null)
-    setPendingIssueRepos({})
-    setResults(null)
-    setPagination(null)
-    setCurrentPage(1)  // Reset to page 1 on new search
-    setShouldScrollToResults(true)
-    await fetchRepos(1, false)  // Don't use cache, fetch fresh data
-  }
-
-  const handlePageChange = async (page) => {
-    if (page < 1 || (pagination && page > pagination.total_pages)) {
-      return
-    }
-    // Use cached data if available, otherwise fetch
-    await fetchRepos(page, true)  // Use cache if available
-    
-    // Scroll to "Recommended Repositories" section after data loads
-    // Account for sticky navbar height (approximately 80px)
-    setTimeout(() => {
-      const resultsSection = document.getElementById('recommended-repositories')
-      if (resultsSection) {
-        const elementPosition = resultsSection.getBoundingClientRect().top
-        const offsetPosition = elementPosition + window.pageYOffset - 100  // 100px offset for navbar
-        window.scrollTo({
-          top: offsetPosition,
-          behavior: 'smooth'
-        })
-      }
-    }, 100)  // Small delay to ensure DOM is updated
-  }
-
+  const editSearch = () => { requestAnimationFrame(() => interestsRef.current?.focus()) }
+  const changePage = next => { setPage(next); void loadIssues(repos.slice((next - 1) * SIZE, next * SIZE), submitted, generation.current); scrollToResults() }
+  const change = e => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  const pagination = repos ? { total_pages: Math.ceil(repos.length / SIZE), total_repos: repos.length, current_page: page } : null
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900">
-      {/* Navigation Bar */}
-      <nav className="bg-zinc-900/90 backdrop-blur-sm border-b border-zinc-700 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center">
-            <Link to="/" className="text-2xl font-bold text-white hover:text-sky-400 transition-colors">
-              Repo Scout
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Form Section */}
-      <div className="container mx-auto px-4 pt-6 pb-12 max-w-7xl">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-4">
-              Find Your Perfect Repository
-            </h1>
-          </div>
-
-          <form onSubmit={handleSubmit} className="bg-zinc-800/60 backdrop-blur-sm border border-zinc-700 rounded-xl p-8 space-y-6">
-            {/* Coding Languages */}
-            <LanguageAutocomplete
-              value={formData.tech_stack}
-              onChange={handleTechStackChange}
-            />
-
-            {/* Interests */}
-            <div>
-              <label htmlFor="interests" className="block text-white font-semibold mb-2">
-                Interests & Goals
-              </label>
-              <textarea
-                id="interests"
-                name="interests"
-                value={formData.interests}
-                onChange={handleInputChange}
-                rows={4}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-y"
-                placeholder="Describe your interests"
-                required
-              />
+    <div className="site-shell">
+      <a href="#search-form" className="skip-link">Skip to search</a>
+      <header className="site-header">
+        <a href="/" className="brand"><span className="brand-mark" aria-hidden="true">⌘</span> repo<span className="brand-light">scout</span><span className="brand-dot">.</span></a>
+        <a className="header-link" href="https://github.com" target="_blank" rel="noreferrer">Explore GitHub <span aria-hidden="true">↗</span></a>
+      </header>
+      <main className="main-content">
+        <section className={`intro ${submitted ? 'intro-compact' : ''}`}>
+          <h1>Find your corner of<br /><span>open source.</span></h1>
+        </section>
+        <section id="search-form" className="search-panel" aria-label="Find repositories">
+          <form onSubmit={e => { e.preventDefault(); void search(formData) }}>
+            <div className="panel-heading"><div><span className="eyebrow">THE STARTING POINT</span><h2>What would you like to build?</h2></div></div>
+            <label htmlFor="interests">Interests & goals</label>
+            <textarea ref={interestsRef} id="interests" name="interests" value={formData.interests} onChange={change} rows={2} maxLength={2000} required placeholder="e.g. I’d love to build accessible web apps with React…" />
+            <div className="example-row"><span>Try an idea</span>{examples.map(example => <button type="button" key={example} onClick={() => { setFormData(prev => ({ ...prev, interests: example })); interestsRef.current?.focus() }}>{example} <span aria-hidden="true">↗</span></button>)}</div>
+            <div className="form-divider" />
+            <LanguageAutocomplete value={formData.tech_stack} onChange={tech_stack => setFormData(prev => ({ ...prev, tech_stack }))} />
+            <div className="experience-grid">
+              <div><label htmlFor="skill_level">Programming experience</label><select required id="skill_level" name="skill_level" value={formData.skill_level} onChange={change}><option value="">Choose your level</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option><option value="expert">Expert</option></select></div>
+              <div><label htmlFor="open_source_experience">Open-source experience</label><select required id="open_source_experience" name="open_source_experience" value={formData.open_source_experience} onChange={change}><option value="">Choose your experience</option><option value="none">My first contribution</option><option value="some">A few contributions</option><option value="experienced">Regular contributor</option><option value="maintainer">Project maintainer</option></select></div>
             </div>
-
-            {/* Skill Level */}
-            <div>
-              <label htmlFor="skill_level" className="block text-white font-semibold mb-2">
-                Skill Level
-              </label>
-              <select
-                id="skill_level"
-                name="skill_level"
-                value={formData.skill_level}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select your skill level</option>
-                <option value="beginner">Beginner</option>
-                <option value="intermediate">Intermediate</option>
-                <option value="advanced">Advanced</option>
-                <option value="expert">Expert</option>
-              </select>
-            </div>
-
-            {/* Open Source Experience */}
-            <div>
-              <label htmlFor="open_source_experience" className="block text-white font-semibold mb-2">
-                Open Source Experience
-              </label>
-              <select
-                id="open_source_experience"
-                name="open_source_experience"
-                value={formData.open_source_experience}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select your experience</option>
-                <option value="none">None - First time contributor</option>
-                <option value="some">Some - A few contributions</option>
-                <option value="experienced">Experienced - Regular contributor</option>
-                <option value="maintainer">Maintainer - Project maintainer</option>
-              </select>
-            </div>
-
-            {/* Submit Button */}
-            <div className="pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-6 py-4 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-lg transition-all duration-200 shadow-lg transform hover:scale-[1.02] disabled:transform-none"
-              >
-                {loading ? 'Searching...' : 'Find Repositories'}
-              </button>
-            </div>
+            <div className="form-footer"><button className="primary-button" disabled={loading} type="submit">{loading ? 'Finding your projects…' : 'Find my next project'} <span aria-hidden="true">→</span></button></div>
           </form>
-
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="max-w-3xl mx-auto mt-6 p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-200">
-            <p className="font-semibold">Error:</p>
-            <p>{error}</p>
-          </div>
-        )}
-
-        {/* Results Board */}
-        {(loading || results) && (
-          <div className="mt-12">
-            <RepositoryList
-              repositories={results}
-              pagination={pagination}
-              loading={loading && !results}
-              loadingStatus={loadingStatus}
-              loadingIssues={loadingIssues}
-              pendingIssueRepos={pendingIssueRepos}
-            />
-            <Pagination
-              pagination={pagination}
-              currentPage={currentPage}
-              onPageChange={handlePageChange}
-              loading={loading}
-            />
-          </div>
-        )}
-      </div>
+        </section>
+        {error && <div role="alert" className="error-panel"><div><strong>Let’s try that again</strong><p>{error}</p></div>{submitted && <button className="secondary-button" onClick={() => search(submitted)}>Retry search</button>}</div>}
+        {(loading || repos !== null) && <>
+          <RepositoryList repositories={repos?.slice((page - 1) * SIZE, page * SIZE)} pagination={pagination} loading={loading} issueStates={issueStates} languages={submitted?.tech_stack || []} onEdit={editSearch} onRetryIssues={repo => loadIssues([repo], submitted, generation.current, true)} />
+          <Pagination pagination={pagination} currentPage={page} onPageChange={changePage} loading={loading} />
+        </>}
+      </main>
     </div>
   )
 }
 
-export default Search
+
+
+

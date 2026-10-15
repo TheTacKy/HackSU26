@@ -34,3 +34,8 @@ OPENAI_API_KEY=your_openai_api_key
 REDIS_URL=redis://localhost:6379/0
 ```
 
+To run the entire backend test suite:
+
+```bash
+npm --prefix backend test
+```

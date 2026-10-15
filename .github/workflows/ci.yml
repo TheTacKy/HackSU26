@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - run: npm ci --prefix backend
+      - run: npm ci --prefix frontend
+      - run: npm test --prefix backend
+      - run: npm run build --prefix backend
+      - run: npm run lint --prefix frontend
+      - run: npm run build --prefix frontend
+      - name: Build and smoke-test production image
+        run: |
+          set -euo pipefail
+          docker build -t repo-scout:test .
+          docker run -d --name smoke -p 8000:8000 repo-scout:test
+          trap 'docker logs smoke; docker rm -f smoke' EXIT
+          curl --fail --retry 15 --retry-all-errors --retry-delay 2 --connect-timeout 2 --max-time 5 http://localhost:8000/health
+          curl --fail http://localhost:8000/ | grep -q '<div id="root">'
+          curl --fail http://localhost:8000/search | grep -q '<div id="root">'
